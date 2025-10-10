@@ -1,13 +1,13 @@
-// PitchTest.jsx
+// PitchTestpiano.jsx (완성본)
 import React, { useEffect, useRef, useState } from "react";
 
 const DEFAULTS = {
-  measureWindowSec: 3.0,
+  measureWindowSec: 2.5, // ✅ 사용자가 음을 낼 수 있는 측정 시간
   voiceOnsetRmsThreshold: 0.015,
   frameIntervalMs: 60,
   strongCents: 30,
   weakCents: 75,
-  strongPercent: 0.6,
+  strongPercent: 0.6, // ✅ strong 판정 기준 (0.6 == 60%)
   weakPercent: 0.4,
 };
 
@@ -27,13 +27,11 @@ function midiToNoteName(m) {
 }
 
 function generateNoteList() {
-  const midiRange = [48, 72]; // C3 ~ C5
+  const midiRange = [48, 84]; // ✅ C3~C6
   let list = [];
   for (let m = midiRange[0]; m <= midiRange[1]; m++) {
     const name = midiToNoteName(m);
-    if (!name.includes("#")) {
-      list.push({ note: name, midi: m, freq: midiToFreq(m) });
-    }
+    if (!name.includes("#")) list.push({ note: name, midi: m, freq: midiToFreq(m) });
   }
   return list;
 }
@@ -76,16 +74,114 @@ function autocorrelate(buffer, sampleRate) {
   return { freq, rms };
 }
 
-// =================== Component ===================
-export default function PitchTest() {
+// ===== WAV 인코딩 =====
+function interleave(buffers, totalLen) {
+  const result = new Float32Array(totalLen);
+  let offset = 0;
+  for (const b of buffers) {
+    result.set(b, offset);
+    offset += b.length;
+  }
+  return result;
+}
+function floatTo16BitPCM(float32Array) {
+  const buffer = new ArrayBuffer(float32Array.length * 2);
+  const view = new DataView(buffer);
+  let offset = 0;
+  for (let i = 0; i < float32Array.length; i++, offset += 2) {
+    const s = Math.max(-1, Math.min(1, float32Array[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return view;
+}
+function encodeWAV(float32Array, sampleRate) {
+  const bytesPerSample = 2;
+  const buffer = new ArrayBuffer(44 + float32Array.length * bytesPerSample);
+  const view = new DataView(buffer);
+  const writeString = (offset, str) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + float32Array.length * bytesPerSample, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, "data");
+  view.setUint32(40, float32Array.length * bytesPerSample, true);
+  const pcm = floatTo16BitPCM(float32Array);
+  for (let i = 0; i < pcm.byteLength; i++) view.setUint8(44 + i, pcm.getUint8(i));
+  return new Blob([view], { type: "audio/wav" });
+}
+
+// ✅ 추가: 테시투라 계산 함수
+function estimateTessitura(results, opts = {}) {
+  const { strongThreshold = 0.6, minNotes = 3, maxAllowedGaps = 1 } = opts;
+  const strongMask = results.map((r) => r.strong >= strongThreshold);
+  const segments = [];
+  let i = 0;
+
+  while (i < results.length) {
+    if (!strongMask[i]) {
+      i++;
+      continue;
+    }
+    let start = i;
+    let end = i;
+    let gaps = 0;
+    i++;
+    while (i < results.length) {
+      if (strongMask[i]) {
+        end = i;
+        gaps = 0;
+      } else {
+        gaps++;
+        if (gaps > maxAllowedGaps) break;
+      }
+      i++;
+    }
+    const included = [];
+    for (let k = start; k <= end; k++) if (strongMask[k]) included.push(k);
+    if (included.length >= minNotes) {
+      const idxLow = included[0];
+      const idxHigh = included[included.length - 1];
+      const notes = included.map((idx) => results[idx].note);
+      const avgStrong = included.reduce((s, idx) => s + results[idx].strong, 0) / included.length;
+      segments.push({
+        low: results[idxLow].note,
+        high: results[idxHigh].note,
+        notes,
+        length: included.length,
+        avgStrong,
+      });
+    }
+  }
+  if (segments.length === 0) return { tessitura: null, segments };
+  segments.sort((a, b) => b.length - a.length || b.avgStrong - a.avgStrong);
+  return { tessitura: segments[0], segments };
+}
+
+export default function PitchTestPiano() {
   const audioCtxRef = useRef(null);
   const analyserRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const canvasRef = useRef(null);
+
+  const recBuffers = useRef([]);
+  const recLength = useRef(0);
+  const isRecording = useRef(false);
+
   const [status, setStatus] = useState("idle");
   const [results, setResults] = useState([]);
   const [currentNote, setCurrentNote] = useState(null);
   const [pitchHistory, setPitchHistory] = useState([]);
+  const [downloadUrl, setDownloadUrl] = useState(null);
+  const [tessitura, setTessitura] = useState(null); // ✅ 추가: 테시투라 상태
 
   useEffect(() => () => stopAll(), []);
   useEffect(() => drawCanvas(), [pitchHistory, currentNote]);
@@ -94,56 +190,76 @@ export default function PitchTest() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaStreamRef.current = stream;
     const AudioContext = window.AudioContext || window.webkitAudioContext;
-    const audioCtx = new AudioContext();
-    audioCtxRef.current = audioCtx;
-
-    const micSource = audioCtx.createMediaStreamSource(stream);
-    const analyser = audioCtx.createAnalyser();
+    const ctx = new AudioContext();
+    audioCtxRef.current = ctx;
+    const mic = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
     analyser.fftSize = 2048;
-    micSource.connect(analyser);
+    mic.connect(analyser);
     analyserRef.current = analyser;
+
+    const node = ctx.createScriptProcessor(4096, 1, 1);
+    node.onaudioprocess = (e) => {
+      if (!isRecording.current) return;
+      const input = e.inputBuffer.getChannelData(0);
+      const copy = new Float32Array(input.length);
+      copy.set(input);
+      recBuffers.current.push(copy);
+      recLength.current += copy.length;
+    };
+    const silentGain = ctx.createGain();
+    silentGain.gain.value = 0;
+    node.connect(silentGain);
+    silentGain.connect(ctx.destination);
+    mic.connect(node);
   }
 
-  function stopAll() {
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close();
-      audioCtxRef.current = null;
-    }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
-      mediaStreamRef.current = null;
-    }
-    setStatus("idle");
-    setCurrentNote(null);
-    setPitchHistory([]);
+  function startRecording() {
+    recBuffers.current = [];
+    recLength.current = 0;
+    isRecording.current = true;
+    setDownloadUrl(null);
+  }
+  function stopRecording() {
+    if (!isRecording.current) return;
+    isRecording.current = false;
+    const ctx = audioCtxRef.current;
+    const data = interleave(recBuffers.current, recLength.current);
+    const wavBlob = encodeWAV(data, ctx.sampleRate);
+    const url = URL.createObjectURL(wavBlob);
+    setDownloadUrl(url);
+
+    // ✅ 서버 업로드 (주석처리)
+    /*
+    const formData = new FormData();
+    formData.append("file", wavBlob, "pitchtest.wav");
+    formData.append("meta", JSON.stringify({ results, tessitura, params: DEFAULTS }));
+    fetch("/upload", { method: "POST", body: formData });
+    */
+
+    recBuffers.current = [];
+    recLength.current = 0;
   }
 
-  // 🎹 피아노 음 버전 (Envelope 길게)
-  function playTone(freq, duration = 2.0) {
+  function playTone(freq, duration = 1.2) {
     const ctx = audioCtxRef.current;
     const osc = ctx.createOscillator();
     const osc2 = ctx.createOscillator();
     const gain = ctx.createGain();
-
-    // 음색 조합 (사인 + 삼각)
     osc.type = "sine";
     osc2.type = "triangle";
-
     const mixGain = ctx.createGain();
     mixGain.gain.value = 0.6;
-
     osc.connect(mixGain);
     osc2.connect(mixGain);
     mixGain.connect(gain);
     gain.connect(ctx.destination);
 
     const now = ctx.currentTime;
-    // 피아노 느낌: attack 빠르게, decay 천천히
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.7, now + 0.02); // 빠른 어택
+    gain.gain.linearRampToValueAtTime(0.7, now + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.4, now + 0.4);
     gain.gain.linearRampToValueAtTime(0.0001, now + duration);
-
     osc.frequency.value = freq;
     osc2.frequency.value = freq;
     osc.start();
@@ -160,79 +276,98 @@ export default function PitchTest() {
     const timeDomain = new Float32Array(bufferLen);
     const ctx = audioCtxRef.current;
 
-    // Step1: count-in
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 800));
+    playTone(noteObj.freq, 1.2);
+    await new Promise((r) => setTimeout(r, 1400));
 
-    // Step2: play reference tone (피아노 음)
-    playTone(noteObj.freq, 2.0);
-    await new Promise((r) => setTimeout(r, 2300)); // 피아노 소리 끝날 때까지 대기
-
-    // Step3: voice onset 감지 (피아노 소리 뒤에)
-    let onsetDetected = false;
-    const onsetDeadline = ctx.currentTime + 4.0;
-    while (ctx.currentTime < onsetDeadline && !onsetDetected) {
-      analyser.getFloatTimeDomainData(timeDomain);
-      let rms = Math.sqrt(timeDomain.reduce((a, v) => a + v * v, 0) / bufferLen);
-      if (rms > DEFAULTS.voiceOnsetRmsThreshold) onsetDetected = true;
-      else await new Promise((r) => setTimeout(r, 100));
-    }
-
-    // Step4: 피치 측정 (onset 이후부터)
     const frames = [];
     const history = [];
     const startTime = ctx.currentTime;
-    if (onsetDetected) {
-      while (ctx.currentTime - startTime < DEFAULTS.measureWindowSec) {
-        analyser.getFloatTimeDomainData(timeDomain);
-        const { freq } = autocorrelate(timeDomain, ctx.sampleRate);
-        if (freq > 0) {
-          const cents = Math.abs(freqToCents(noteObj.freq, freq));
-          frames.push(cents);
-          history.push(freq);
-          setPitchHistory([...history]);
-        }
-        await new Promise((r) => setTimeout(r, DEFAULTS.frameIntervalMs));
+    while (ctx.currentTime - startTime < DEFAULTS.measureWindowSec) {
+      analyser.getFloatTimeDomainData(timeDomain);
+      const { freq } = autocorrelate(timeDomain, ctx.sampleRate);
+      if (freq > 0) {
+        const cents = Math.abs(freqToCents(noteObj.freq, freq));
+        frames.push(cents);
+        history.push(freq);
+        setPitchHistory([...history]);
       }
+      await new Promise((r) => setTimeout(r, DEFAULTS.frameIntervalMs));
     }
 
-    // Step5: 판정
     const total = frames.length || 1;
     const strong = frames.filter((c) => c <= DEFAULTS.strongCents).length / total;
     const weak = frames.filter((c) => c <= DEFAULTS.weakCents).length / total;
     let grade = "Fail";
     if (strong >= DEFAULTS.strongPercent) grade = "Strong OK";
     else if (weak >= DEFAULTS.weakPercent) grade = "Weak OK";
-
-    return { note: noteObj.note, freq: noteObj.freq, strong, weak, grade };
+    return { note: noteObj.note, strong, weak, grade };
   }
 
   async function startSequence() {
     setResults([]);
     setStatus("running");
     await initAudio();
+    startRecording();
+
     const res = [];
-    for (let note of NOTES_TO_TEST) {
-      const r = await runNoteTest(note);
+    for (const n of NOTES_TO_TEST) {
+      const r = await runNoteTest(n);
       res.push(r);
       setResults([...res]);
-      await new Promise((s) => setTimeout(s, 800));
+      await new Promise((s) => setTimeout(s, 400));
     }
+
+    stopRecording();
+
+    // ✅ 테시투라 분석
+    const { tessitura, segments } = estimateTessitura(res, {
+      strongThreshold: DEFAULTS.strongPercent,
+      minNotes: 3,
+      maxAllowedGaps: 1,
+    });
+    setTessitura(tessitura);
+    console.log("🎼 Tessitura 분석 결과:", tessitura);
+    console.log("📊 모든 구간:", segments);
+
+    // ✅ 서버로 보낼 데이터 구조 출력
+    const payload = {
+      results: res,        // 음별 strong/weak/grade 등
+      tessitura,           // 프론트 계산 결과
+      params: DEFAULTS,    // 측정 기준값들
+    };
+    console.log("📤 서버로 전송할 데이터 예시:", JSON.stringify(payload, null, 2));
+
+
     setStatus("done");
   }
 
-  // ====== 시각화 ======
+  
+
+  function stopAll() {
+    stopRecording();
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close();
+      audioCtxRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+    setStatus("idle");
+  }
+
+  // 그래프 C2~C7
   function drawCanvas() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    const width = canvas.width;
-    const height = canvas.height;
+    const width = canvas.width,
+      height = canvas.height;
     ctx.clearRect(0, 0, width, height);
-
     const minMidi = 36; // C2
-    const maxMidi = 84; // C6
+    const maxMidi = 96; // C7
 
-    // 옥타브 라인 (진한 회색)
     for (let m = minMidi; m <= maxMidi; m++) {
       const y = ((maxMidi - m) / (maxMidi - minMidi)) * height;
       ctx.beginPath();
@@ -248,11 +383,10 @@ export default function PitchTest() {
       }
     }
 
-    // 기준음 빨간 선
     if (currentNote) {
-      const n = NOTES_TO_TEST.find((x) => x.note === currentNote);
-      if (n) {
-        const y = ((maxMidi - n.midi) / (maxMidi - minMidi)) * height;
+      const noteObj = NOTES_TO_TEST.find((x) => x.note === currentNote);
+      if (noteObj) {
+        const y = ((maxMidi - noteObj.midi) / (maxMidi - minMidi)) * height;
         ctx.strokeStyle = "red";
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -262,13 +396,12 @@ export default function PitchTest() {
       }
     }
 
-    // 사용자 피치 궤적 (파란 곡선)
     ctx.strokeStyle = "blue";
     ctx.beginPath();
     pitchHistory.forEach((f, i) => {
       const m = freqToMidi(f);
       const y = ((maxMidi - m) / (maxMidi - minMidi)) * height;
-      const x = (i / pitchHistory.length) * width;
+      const x = (i / Math.max(1, pitchHistory.length - 1)) * width;
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
@@ -277,8 +410,8 @@ export default function PitchTest() {
 
   return (
     <div style={{ fontFamily: "sans-serif", maxWidth: 1000, margin: 16 }}>
-      <h2>🎹 피아노 음 버전 피치 테스트</h2>
-      <div style={{ marginBottom: 10 }}>
+      <h2>🎹 사용자 음역대 테스트 (C3–C6)</h2>
+      <div>
         <button onClick={startSequence} disabled={status === "running"}>
           테스트 시작
         </button>
@@ -288,8 +421,12 @@ export default function PitchTest() {
         상태: {status} {currentNote && `(현재: ${currentNote})`}
       </div>
 
-      <h3>실시간 피치 그래프</h3>
-      <canvas ref={canvasRef} width={1000} height={600} style={{ border: "1px solid black" }} />
+      <canvas
+        ref={canvasRef}
+        width={1000}
+        height={600}
+        style={{ border: "1px solid black", marginTop: 10 }}
+      />
 
       <h3>결과 테이블</h3>
       <table border="1" cellPadding="5" style={{ borderCollapse: "collapse" }}>
@@ -322,6 +459,27 @@ export default function PitchTest() {
           ))}
         </tbody>
       </table>
+
+      {tessitura && (
+        <div style={{ marginTop: 20 }}>
+          <h3>🎤 분석된 테시투라</h3>
+          <p>
+            <strong>
+              {tessitura.low} ~ {tessitura.high}
+            </strong>{" "}
+            (평균 강도 {(tessitura.avgStrong * 100).toFixed(1)}%)
+          </p>
+        </div>
+      )}
+
+      {downloadUrl && (
+        <div style={{ marginTop: 12 }}>
+          <h4>녹음 파일</h4>
+          <a href={downloadUrl} download={`pitchtest_${Date.now()}.wav`}>
+            WAV 다운로드
+          </a>
+        </div>
+      )}
     </div>
   );
 }
