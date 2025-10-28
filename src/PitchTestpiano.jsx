@@ -229,13 +229,6 @@ export default function PitchTestPiano() {
     const url = URL.createObjectURL(wavBlob);
     setDownloadUrl(url);
 
-    // ✅ 서버 업로드 (주석처리)
-    /*
-    const formData = new FormData();
-    formData.append("file", wavBlob, "pitchtest.wav");
-    formData.append("meta", JSON.stringify({ results, tessitura, params: DEFAULTS }));
-    fetch("/upload", { method: "POST", body: formData });
-    */
 
     recBuffers.current = [];
     recLength.current = 0;
@@ -330,19 +323,44 @@ export default function PitchTestPiano() {
     console.log("🎼 Tessitura 분석 결과:", tessitura);
     console.log("📊 모든 구간:", segments);
 
-    // ✅ 서버로 보낼 데이터 구조 출력
-    const payload = {
-      results: res,        // 음별 strong/weak/grade 등
-      tessitura,           // 프론트 계산 결과
-      params: DEFAULTS,    // 측정 기준값들
-    };
-    console.log("📤 서버로 전송할 데이터 예시:", JSON.stringify(payload, null, 2));
+    // MIDI 값 계산
+    let midi_min = null, midi_max = null, midi_median = null;
+    if (tessitura) {
+      const midiValues = tessitura.notes.map(
+        (n) => NOTES_TO_TEST.find((x) => x.note === n).midi
+      );
+      midiValues.sort((a, b) => a - b);
+      midi_min = midiValues[0];
+      midi_max = midiValues[midiValues.length - 1];
+      midi_median =
+        midiValues.length % 2 === 1
+          ? midiValues[Math.floor(midiValues.length / 2)]
+          : (midiValues[midiValues.length / 2 - 1] +
+            midiValues[midiValues.length / 2]) /
+            2;
+    }
 
+    // 서버 전송용 payload
+    const payload = tessitura
+      ? { midi_min, midi_median, midi_max }
+      : null;
+
+    // 콘솔 출력
+    console.log("📤 서버로 전송할 테시투라 MIDI 데이터:", JSON.stringify(payload, null, 2));
+
+    // 서버 전송 추가
+    /*
+    fetch("/upload-tessitura", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    */
+    //
 
     setStatus("done");
   }
 
-  
 
   function stopAll() {
     stopRecording();
