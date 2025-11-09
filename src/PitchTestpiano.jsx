@@ -1,14 +1,14 @@
-// PitchTestpiano.jsx (완성본)
+// PitchTestpiano.jsx
 import React, { useEffect, useRef, useState } from "react";
 
 const DEFAULTS = {
-  measureWindowSec: 2.5, // ✅ 사용자가 음을 낼 수 있는 측정 시간
+  measureWindowSec: 2.5, // 사용자의 음정 측정 시간
   voiceOnsetRmsThreshold: 0.015,
-  frameIntervalMs: 60,
-  strongCents: 30,
-  weakCents: 75,
-  strongPercent: 0.6, // ✅ strong 판정 기준 (0.6 == 60%)
-  weakPercent: 0.4,
+  frameIntervalMs: 60,  // frame 간격
+  strongCents: 40,  // strong 판정 기준 (기준음과의 차이가 40 cents 이내)
+  weakCents: 75,  // weak 판정 기준 (기준음과의 차이가 75 cents 이내)
+  strongPercent: 0.6, // strong 판정 기준 (전체 프레임 중 strong 프레임의 비율 == 60% 이상)
+  weakPercent: 0.4,  // weak 판정 기준 (전체 프레임 중 weak 프레임의 비율 == 40% 이상)
 };
 
 function midiToFreq(m) {
@@ -27,7 +27,7 @@ function midiToNoteName(m) {
 }
 
 function generateNoteList() {
-  const midiRange = [48, 84]; // ✅ C3~C6
+  const midiRange = [48, 84]; // C3~C6
   let list = [];
   for (let m = midiRange[0]; m <= midiRange[1]; m++) {
     const name = midiToNoteName(m);
@@ -119,7 +119,7 @@ function encodeWAV(float32Array, sampleRate) {
   return new Blob([view], { type: "audio/wav" });
 }
 
-// ✅ 추가: 테시투라 계산 함수
+// 테시투라 계산 함수
 function estimateTessitura(results, opts = {}) {
   const { strongThreshold = 0.6, minNotes = 3, maxAllowedGaps = 1 } = opts;
   const strongMask = results.map((r) => r.strong >= strongThreshold);
@@ -313,7 +313,7 @@ export default function PitchTestPiano() {
 
     stopRecording();
 
-    // ✅ 테시투라 분석
+    // 테시투라 분석
     const { tessitura, segments } = estimateTessitura(res, {
       strongThreshold: DEFAULTS.strongPercent,
       minNotes: 3,
@@ -439,44 +439,68 @@ export default function PitchTestPiano() {
         상태: {status} {currentNote && `(현재: ${currentNote})`}
       </div>
 
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 20, marginTop: 10 }}>
+      {/* 왼쪽: 그래프 (크기 그대로 유지) */}
       <canvas
         ref={canvasRef}
-        width={1000}
+        width={900}
         height={600}
-        style={{ border: "1px solid black", marginTop: 10 }}
+        style={{ border: "1px solid black" }}
       />
 
-      <h3>결과 테이블</h3>
-      <table border="1" cellPadding="5" style={{ borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th>음</th>
-            <th>Strong%</th>
-            <th>Weak%</th>
-            <th>판정</th>
-          </tr>
-        </thead>
-        <tbody>
-          {results.map((r, i) => (
-            <tr
-              key={i}
-              style={{
-                background:
-                  r.grade === "Strong OK"
-                    ? "#9cff9c"
-                    : r.grade === "Weak OK"
-                    ? "#ffe699"
-                    : "#ff9999",
-              }}
-            >
-              <td>{r.note}</td>
-              <td>{(r.strong * 100).toFixed(0)}%</td>
-              <td>{(r.weak * 100).toFixed(0)}%</td>
-              <td>{r.grade}</td>
+      {/* 오른쪽: 표 컨테이너 */}
+      <div
+        style={{
+          flexShrink: 0,
+          maxHeight: 600,            // 그래프 높이에 맞춤
+          overflowY: "auto",         // 표가 길면 스크롤
+          border: "1px solid #ccc",  // 표 테두리 구분용 (선택)
+          padding: 8,                // 표 주변 여백
+          background: "white",       // 캔버스 배경과 구분
+          minWidth: 300              // 폭 최소 확보 (모양 깨짐 방지)
+        }}
+      >
+        <h3 style={{ marginTop: 0 }}>결과 테이블</h3>
+        <table
+          border="1"
+          cellPadding="5"
+          style={{
+            borderCollapse: "collapse",
+            width: "100%",            // 표 폭이 꽉 차도록
+            textAlign: "center"
+          }}
+        >
+          <thead style={{ background: "#f0f0f0" }}>
+            <tr>
+              <th>음</th>
+              <th>Strong%</th>
+              <th>Weak%</th>
+              <th>판정</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {results.map((r, i) => (
+              <tr
+                key={i}
+                style={{
+                  background:
+                    r.grade === "Strong OK"
+                      ? "#9cff9c"
+                      : r.grade === "Weak OK"
+                      ? "#ffe699"
+                      : "#ff9999",
+                }}
+              >
+                <td>{r.note}</td>
+                <td>{(r.strong * 100).toFixed(0)}%</td>
+                <td>{(r.weak * 100).toFixed(0)}%</td>
+                <td>{r.grade}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
 
       {tessitura && (
         <div style={{ marginTop: 20 }}>
