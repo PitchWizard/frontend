@@ -303,6 +303,9 @@ export default function PitchTestPiano() {
   async function startSequence() {
     setResults([]);
     setStatus("running");
+    // 새 테스트 시작할 때 이전 재시도 기록 초기화
+    setRetriedNotes([]);
+    setRetryingNote(null);
     await initAudio();
     startRecording();
 
@@ -397,10 +400,6 @@ export default function PitchTestPiano() {
     const minSucc = Math.min(...successIndices);
     const maxSucc = Math.max(...successIndices);
 
-    if (!(noteIndex > minSucc && noteIndex < maxSucc)) {
-      alert("이 음은 성공한 최저음과 최고음 사이에 있지 않아 재도전할 수 없습니다.");
-      return;
-    }
 
     // ===== 재도전 실행 =====
     setRetryingNote(noteName);
@@ -584,54 +583,77 @@ export default function PitchTestPiano() {
           <div style={{ marginTop: 16 }}>
             <h3>🎯 재도전 가능한 음 (음별 1회)</h3>
             <p style={{ marginTop: 6, marginBottom: 6 }}>
-              성공한 최저음과 최고음 사이에 있는 <strong>Weak OK 또는 Fail</strong> 음만 재도전할 수 있습니다.
+              <strong>최저음/최고음 경계에 인접한 Weak OK</strong> 음과,<br></br>  
+              <strong>Strong OK 범위 내부의 Weak OK / Fail</strong> 음만 재도전할 수 있습니다.
             </p>
+
 
             <div>
               {(() => {
-                const successGrades = ["Strong OK", "Weak OK"];
-                const successIndices = results
-                  .map((r, i) => ({ i, grade: r.grade }))
-                  .filter(x => successGrades.includes(x.grade))
-                  .map(x => x.i);
+              // 1️⃣ Strong OK 인덱스 찾기
+              const strongIndices = results
+                .map((r, i) => ({ i, grade: r.grade }))
+                .filter(x => x.grade === "Strong OK")
+                .map(x => x.i);
 
-                if (successIndices.length < 2)
-                  return <p>성공한 최저/최고음이 충분하지 않아 재도전할 음이 없습니다.</p>;
+              if (strongIndices.length < 1)
+                return <p>Strong OK 음이 없어 재도전할 수 없습니다.</p>;
 
-                const minIdx = Math.min(...successIndices);
-                const maxIdx = Math.max(...successIndices);
+              const minStrong = Math.min(...strongIndices);
+              const maxStrong = Math.max(...strongIndices);
 
-                const candidates = results
-                  .map((r, i) => ({ ...r, i }))
-                  .filter(
-                    x =>
-                      x.i > minIdx &&
-                      x.i < maxIdx &&
-                      (x.grade === "Weak OK" || x.grade === "Fail")
-                  );
-
-                if (candidates.length === 0)
-                  return <p>재도전 가능한 음이 없습니다.</p>;
-
-                return (
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {candidates.map(c => (
-                      <button
-                        key={c.note}
-                        onClick={() => retryNote(c.note)}
-                        disabled={retryingNote !== null || retriedNotes.includes(c.note)}
-                        style={{ padding: "6px 10px" }}
-                      >
-                        {retryingNote === c.note
-                          ? `${c.note} 재측정 중...`
-                          : retriedNotes.includes(c.note)
-                          ? `${c.note} 재도전 완료`
-                          : `${c.note} 재도전`}
-                      </button>
-                    ))}
-                  </div>
+              // 2️⃣ 내부 약/실패 음 (Strong OK 사이)
+              const internal = results
+                .map((r, i) => ({ ...r, i }))
+                .filter(
+                  x =>
+                    x.i > minStrong &&
+                    x.i < maxStrong &&
+                    (x.grade === "Weak OK" || x.grade === "Fail")
                 );
-              })()}
+
+              // 3️⃣ 하단 인접 Weak OK 연속 구간 (Strong OK 최저음보다 낮은)
+              const lower = [];
+              for (let i = minStrong - 1; i >= 0; i--) {
+                const r = results[i];
+                if (!r || r.grade !== "Weak OK") break;
+                lower.push({ ...r, i });
+              }
+
+              // 4️⃣ 상단 인접 Weak OK 연속 구간 (Strong OK 최고음보다 낮은)
+              const higher = [];
+              for (let i = maxStrong + 1; i < results.length; i++) {
+                const r = results[i];
+                if (!r || r.grade !== "Weak OK") break;
+                higher.push({ ...r, i });
+              }
+
+              // 5️⃣ 전체 후보 합치기
+              const candidates = [...lower.reverse(), ...internal, ...higher];
+
+              if (candidates.length === 0)
+                return <p>재도전 가능한 음이 없습니다.</p>;
+
+              return (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {candidates.map(c => (
+                    <button
+                      key={c.note}
+                      onClick={() => retryNote(c.note)}
+                      disabled={retryingNote !== null || retriedNotes.includes(c.note)}
+                      style={{ padding: "6px 10px" }}
+                    >
+                      {retryingNote === c.note
+                        ? `${c.note} 재측정 중...`
+                        : retriedNotes.includes(c.note)
+                        ? `${c.note} 재도전 완료`
+                        : `${c.note} 재도전`}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+
             </div>
           </div>
         )}
