@@ -182,6 +182,9 @@ export default function PitchTestPiano() {
   const [pitchHistory, setPitchHistory] = useState([]);
   const [downloadUrl, setDownloadUrl] = useState(null);
   const [tessitura, setTessitura] = useState(null); // ✅ 추가: 테시투라 상태
+  // ✅ 음별 재도전 관리 (각 음별 1회)
+  const [retriedNotes, setRetriedNotes] = useState([]); // 이미 재시도한 음 리스트
+  const [retryingNote, setRetryingNote] = useState(null);
 
   useEffect(() => () => stopAll(), []);
   useEffect(() => drawCanvas(), [pitchHistory, currentNote]);
@@ -362,6 +365,82 @@ export default function PitchTestPiano() {
   }
 
 
+  // 재도전 함수
+  async function retryNote(noteName) {
+    if (retriedNotes.includes(noteName)) {
+      alert(`${noteName} 음은 이미 재도전했습니다.`);
+      return;
+    }
+
+    const noteObj = NOTES_TO_TEST.find(n => n.note === noteName);
+    if (!noteObj) return;
+
+    const cur = results.find(r => r.note === noteName);
+    if (!cur || (cur.grade !== "Weak OK" && cur.grade !== "Fail")) {
+      alert("재도전은 Weak OK 또는 Fail인 음만 가능합니다.");
+      return;
+    }
+
+    // 성공한 범위 계산
+    const successGrades = ["Strong OK", "Weak OK"];
+    const successIndices = results
+      .map((r, i) => ({ i, grade: r.grade }))
+      .filter(x => successGrades.includes(x.grade))
+      .map(x => x.i);
+
+    if (successIndices.length === 0) {
+      alert("성공한 음이 없어서 재도전 대상 범위를 계산할 수 없습니다.");
+      return;
+    }
+
+    const noteIndex = NOTES_TO_TEST.findIndex(n => n.note === noteName);
+    const minSucc = Math.min(...successIndices);
+    const maxSucc = Math.max(...successIndices);
+
+    if (!(noteIndex > minSucc && noteIndex < maxSucc)) {
+      alert("이 음은 성공한 최저음과 최고음 사이에 있지 않아 재도전할 수 없습니다.");
+      return;
+    }
+
+    // ===== 재도전 실행 =====
+    setRetryingNote(noteName);
+    setStatus("retrying");
+
+    try {
+      await initAudio();     // 🎵 오디오 초기화 (이제 playTone 가능)
+      startRecording();
+
+      const updated = await runNoteTest(noteObj); // 제시음 재생 + 사용자 입력 측정
+
+      stopRecording();
+      stopAll(); // 오디오 종료
+
+      // 결과 갱신
+      setResults(prev => {
+        const next = prev.map(r => (r.note === noteName ? updated : r));
+        const { tessitura: newTessitura } = estimateTessitura(next, {
+          strongThreshold: DEFAULTS.strongPercent,
+          minNotes: 3,
+          maxAllowedGaps: 1,
+        });
+        setTessitura(newTessitura);
+        return next;
+      });
+
+      // ✅ 이 음은 재시도 완료 목록에 추가
+      setRetriedNotes(prev => [...prev, noteName]);
+      setStatus("done");
+    } catch (err) {
+      console.error("retryNote error", err);
+      alert("재도전 중 오류가 발생했습니다.");
+      setStatus("done");
+    } finally {
+      setRetryingNote(null);
+    }
+  }
+
+
+
   function stopAll() {
     stopRecording();
     if (audioCtxRef.current) {
@@ -499,6 +578,64 @@ export default function PitchTestPiano() {
             ))}
           </tbody>
         </table>
+
+        {/* 🎯 재도전 UI: 테스트 완료 상태일 때 */}
+        {status === "done" && (
+          <div style={{ marginTop: 16 }}>
+            <h3>🎯 재도전 가능한 음 (음별 1회)</h3>
+            <p style={{ marginTop: 6, marginBottom: 6 }}>
+              성공한 최저음과 최고음 사이에 있는 <strong>Weak OK 또는 Fail</strong> 음만 재도전할 수 있습니다.
+            </p>
+
+            <div>
+              {(() => {
+                const successGrades = ["Strong OK", "Weak OK"];
+                const successIndices = results
+                  .map((r, i) => ({ i, grade: r.grade }))
+                  .filter(x => successGrades.includes(x.grade))
+                  .map(x => x.i);
+
+                if (successIndices.length < 2)
+                  return <p>성공한 최저/최고음이 충분하지 않아 재도전할 음이 없습니다.</p>;
+
+                const minIdx = Math.min(...successIndices);
+                const maxIdx = Math.max(...successIndices);
+
+                const candidates = results
+                  .map((r, i) => ({ ...r, i }))
+                  .filter(
+                    x =>
+                      x.i > minIdx &&
+                      x.i < maxIdx &&
+                      (x.grade === "Weak OK" || x.grade === "Fail")
+                  );
+
+                if (candidates.length === 0)
+                  return <p>재도전 가능한 음이 없습니다.</p>;
+
+                return (
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {candidates.map(c => (
+                      <button
+                        key={c.note}
+                        onClick={() => retryNote(c.note)}
+                        disabled={retryingNote !== null || retriedNotes.includes(c.note)}
+                        style={{ padding: "6px 10px" }}
+                      >
+                        {retryingNote === c.note
+                          ? `${c.note} 재측정 중...`
+                          : retriedNotes.includes(c.note)
+                          ? `${c.note} 재도전 완료`
+                          : `${c.note} 재도전`}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
 
