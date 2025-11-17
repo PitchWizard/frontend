@@ -6,11 +6,9 @@ function App() {
 
   return (
     <div>
-      <h1>Web Audio API Test</h1>
       <PitchTestpiano />
     </div>
 
-    
   )
   
 }
