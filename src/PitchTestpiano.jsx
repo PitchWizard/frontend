@@ -281,7 +281,9 @@ export default function PitchTestPiano() {
     const startTime = ctx.currentTime;
     while (ctx.currentTime - startTime < DEFAULTS.measureWindowSec) {
       analyser.getFloatTimeDomainData(timeDomain);
-      const { freq } = autocorrelate(timeDomain, ctx.sampleRate);
+      const { freq, rms } = autocorrelate(timeDomain, ctx.sampleRate);
+      console.log("RMS:", rms, "Freq:", freq);
+
       if (freq > 0) {
         const cents = Math.abs(freqToCents(noteObj.freq, freq));
         frames.push(cents);
@@ -505,8 +507,17 @@ export default function PitchTestPiano() {
   }
 
   return (
-    <div style={{ fontFamily: "sans-serif", maxWidth: 1000, margin: 16 }}>
-      <h2>🎹 사용자 음역대 테스트 (C3–C6)</h2>
+    <div
+      style={{
+        fontFamily: "sans-serif",
+        maxWidth: 1000,
+        margin: "0 auto",
+        padding: 16,
+        textAlign: "center"
+      }}
+    >
+
+      <h2>사용자 음역대 테스트</h2>
       <div>
         <button onClick={startSequence} disabled={status === "running"}>
           테스트 시작
