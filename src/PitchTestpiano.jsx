@@ -281,8 +281,7 @@ export default function PitchTestPiano() {
     const startTime = ctx.currentTime;
     while (ctx.currentTime - startTime < DEFAULTS.measureWindowSec) {
       analyser.getFloatTimeDomainData(timeDomain);
-      const { freq, rms } = autocorrelate(timeDomain, ctx.sampleRate);
-      console.log("RMS:", rms, "Freq:", freq);
+      const { freq } = autocorrelate(timeDomain, ctx.sampleRate);
 
       if (freq > 0) {
         const cents = Math.abs(freqToCents(noteObj.freq, freq));
@@ -312,10 +311,25 @@ export default function PitchTestPiano() {
     startRecording();
 
     const res = [];
+    let consecutiveFailCount = 0; // 연속 실패 카운터
     for (const n of NOTES_TO_TEST) {
       const r = await runNoteTest(n);
       res.push(r);
       setResults([...res]);
+
+      // 연속 실패 카운트
+      if (r.grade === "Fail") {
+        consecutiveFailCount += 1;
+      } else {
+        consecutiveFailCount = 0; // 성공하면 초기화
+      }
+
+      // 3연속 실패 시 테스트 종료
+      if (consecutiveFailCount >= 3) {
+        console.warn("❌ 연속 3회 실패 → 테스트 종료");
+        break;
+      }
+
       await new Promise((s) => setTimeout(s, 400));
     }
 
