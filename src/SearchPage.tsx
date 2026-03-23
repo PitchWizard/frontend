@@ -25,7 +25,7 @@ export default function SearchPage({ onBack, isDarkMode }: Props) {
           "url('https://cdn.pixabay.com/photo/2022/07/10/01/47/grades-7312021_1280.jpg')",
       }}
     >
-      {/* 배경 오버레이 */}
+      {/* Background overlay */}
       <div
         className={`absolute inset-0 backdrop-blur-md ${
           isDarkMode ? "bg-black/80" : "bg-white/60"
@@ -33,7 +33,6 @@ export default function SearchPage({ onBack, isDarkMode }: Props) {
       />
 
       <div className="relative z-10 min-h-screen flex flex-col">
-        {/* HEADER */}
         <header
           className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b ${border} ${headerBg}`}
         >
@@ -43,7 +42,7 @@ export default function SearchPage({ onBack, isDarkMode }: Props) {
               className={`p-2 rounded-lg transition-colors ${
                 isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
               }`}
-              aria-label="뒤로가기"
+              aria-label="뒤로 가기"
             >
               <ArrowLeft className={`w-6 h-6 ${textColor}`} />
             </button>
@@ -56,10 +55,8 @@ export default function SearchPage({ onBack, isDarkMode }: Props) {
           </div>
         </header>
 
-        {/* MAIN */}
         <main className="pt-40 px-10 pb-20">
           <div className="w-[85%] mx-auto">
-            {/* 페이지 제목 */}
             <div className="text-center">
               <h2 className={`font-['Pretendard'] text-[38px] font-bold ${textColor}`}>
                 노래 찾기
@@ -69,7 +66,6 @@ export default function SearchPage({ onBack, isDarkMode }: Props) {
               </p>
             </div>
 
-            {/* 검색창 */}
             <div className="mt-12 flex justify-center">
               <div
                 className={`w-full max-w-4xl rounded-2xl border ${border} ${inputBg} backdrop-blur-xl`}
@@ -81,14 +77,12 @@ export default function SearchPage({ onBack, isDarkMode }: Props) {
                     type="text"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="노래 제목이나 가수를 검색하세요"
+                    placeholder="노래 제목이나 가수를 검색해보세요"
                     className={`w-full bg-transparent outline-none border-none font-['Pretendard'] text-[16px] ${textColor} ${placeholderColor}`}
                   />
                 </div>
               </div>
             </div>
-
-            
           </div>
         </main>
       </div>
