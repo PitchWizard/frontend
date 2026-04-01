@@ -13,11 +13,13 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
+import AccompanimentPage from "./AccompanimentPage.tsx";
 import LoginPage from "./LoginPage.tsx";
 import PitchTest from "./PitchTest.tsx";
 import SearchPage from "./SearchPage.tsx";
+import VoiceRangePage from "./VoiceRangePage.tsx";
 
-type Page = "home" | "login" | "test" | "search";
+type Page = "home" | "login" | "test" | "search" | "accompaniment" | "range";
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>("home");
@@ -34,6 +36,14 @@ export default function App() {
 
   if (currentPage === "search") {
     return <SearchPage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} />;
+  }
+
+  if (currentPage === "accompaniment") {
+    return <AccompanimentPage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} />;
+  }
+
+  if (currentPage === "range") {
+    return <VoiceRangePage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} />;
   }
 
   const bgColor = isDarkMode ? "bg-[#1f1f1f]/60" : "bg-[#f8f7f9]/60";
@@ -115,11 +125,11 @@ export default function App() {
           <div className="w-[85%] mx-auto flex flex-col items-center">
             <div className={heroOffsetClass}>
               <div className="flex flex-col items-center text-center max-w-3xl space-y-0">
-                <h2 className={`font-['Pretendard'] font-thin text-[60px] ${textColor}`}>
+                <h2 className={`font-['Pretendard'] font-thin text-[56px] ${textColor}`}>
                   자신의 음역대를 찾고
                 </h2>
 
-                <h1 className="font-['Pretendard'] text-[85px] font-bold leading-tight text-[#00d9b1]">
+                <h1 className="font-['Pretendard'] text-[83px] font-bold leading-tight text-[#00d9b1]">
                   자신 있게 노래하세요
                 </h1>
 
@@ -145,17 +155,18 @@ export default function App() {
             </div>
 
             <div className="w-full mt-32 grid md:grid-cols-3 gap-12">
-              <div
-                className={`relative ${cardBg} border ${border} rounded-2xl p-10 backdrop-blur-sm transition-all ${cardHoverBg}`}
+              <button
+                onClick={() => setCurrentPage("range")}
+                className={`relative text-left w-full ${cardBg} border ${border} rounded-2xl p-10 backdrop-blur-sm transition-all ${cardHoverBg}`}
               >
                 <div className={`w-16 h-16 rounded-xl flex items-center justify-center mb-5 ${iconBg}`}>
                   <Music className={`w-8 h-8 ${iconColor}`} />
                 </div>
                 <h3 className={`text-[24px] font-semibold mb-3 ${textColor}`}>나의 음역대</h3>
                 <p className={`text-[16px] ${textTertiary}`}>
-                  테스트 기반으로 정확한 음역대를 분석합니다
+                  테스트 결과와 음역 해석, 유사 가수 정보를 확인합니다
                 </p>
-              </div>
+              </button>
 
               <button
                 onClick={() => setCurrentPage("search")}
@@ -170,15 +181,16 @@ export default function App() {
                 </p>
               </button>
 
-              <div
-                className={`relative ${cardBg} border ${border} rounded-2xl p-10 backdrop-blur-sm transition-all ${cardHoverBg}`}
+              <button
+                onClick={() => setCurrentPage("accompaniment")}
+                className={`relative text-left w-full ${cardBg} border ${border} rounded-2xl p-10 backdrop-blur-sm transition-all ${cardHoverBg}`}
               >
                 <div className={`w-16 h-16 rounded-xl flex items-center justify-center mb-5 ${iconBg}`}>
                   <Sparkles className={`w-8 h-8 ${iconColor}`} />
                 </div>
                 <h3 className={`text-[24px] font-semibold mb-3 ${textColor}`}>노래 추천</h3>
-                <p className={`text-[16px] ${textTertiary}`}>곧 출시 예정</p>
-              </div>
+                <p className={`text-[16px] ${textTertiary}`}>반주 제공 페이지로 연결됩니다</p>
+              </button>
             </div>
           </div>
         </main>
