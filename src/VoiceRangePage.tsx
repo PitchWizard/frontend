@@ -1,51 +1,36 @@
-import { ArrowLeft, BarChart3, Mic2, UserRound, Waves } from "lucide-react";
+import { ArrowLeft, BarChart3, Mic2, UserRound } from "lucide-react";
+
+const similarSingers = [
+  { name: "아이유", range: "F3 ~ G5", overlap: "중저음~고음을 넘나드는 폭넓은 음역" },
+  { name: "태연", range: "A3 ~ B5", overlap: "맑고 높은 소프라노 계열" },
+  { name: "볼빨간사춘기", range: "G3 ~ A5", overlap: "감성적인 중고음 음역" },
+  { name: "임창정", range: "D3 ~ E5", overlap: "따뜻한 중저음 음색" },
+  { name: "나얼", range: "E3 ~ F5", overlap: "풍부한 바리톤 ~ 테너 음역" },
+  { name: "박효신", range: "D3 ~ D5", overlap: "깊고 진한 저음 ~ 중음 음역" },
+];
 
 type Props = {
   onBack: () => void;
   isDarkMode: boolean;
-};
-
-type SimilarSinger = {
-  name: string;
-  range: string;
-  overlap: string;
+  user: any;
 };
 
 const whiteKeys = [
-  "C3",
-  "D3",
-  "E3",
-  "F3",
-  "G3",
-  "A3",
-  "B3",
-  "C4",
-  "D4",
-  "E4",
-  "F4",
-  "G4",
-  "A4",
-  "B4",
-  "C5",
-  "D5",
-  "E5",
-  "F5",
-  "G5",
-  "A5",
-  "B5",
-  "C6",
+  "C3","D3","E3","F3","G3","A3","B3",
+  "C4","D4","E4","F4","G4","A4","B4",
+  "C5","D5","E5","F5","G5","A5","B5","C6",
 ];
 
-const rangeStartWhiteIndex = 4; // G3
-const rangeEndWhiteIndex = 12; // A4
+function getNoteWhiteIndex(note: string): number {
+  return whiteKeys.indexOf(note);
+}
 
-const similarSingers: SimilarSinger[] = [
-  { name: "가수 A", range: "A2 ~ B4", overlap: "겹치는 구간: G3 ~ A4" },
-  { name: "가수 B", range: "F2 ~ A4", overlap: "겹치는 구간: G3 ~ A4" },
-  { name: "가수 C", range: "B2 ~ C5", overlap: "겹치는 구간: G3 ~ A4" },
-];
-
-export default function VoiceRangePage({ onBack, isDarkMode }: Props) {
+export default function VoiceRangePage({ onBack, isDarkMode, user }: Props) {
+  const lowNote: string | null = user?.low_note ?? null;
+  const highNote: string | null = user?.high_note ?? null;
+  const rangeStartWhiteIndex = lowNote ? getNoteWhiteIndex(lowNote) : -1;
+  const rangeEndWhiteIndex = highNote ? getNoteWhiteIndex(highNote) : -1;
+  const hasMeasured = lowNote && highNote;
   const bgColor = isDarkMode ? "bg-[#1f1f1f]/60" : "bg-[#f8f7f9]/60";
   const textColor = isDarkMode ? "text-white" : "text-[#1f1f1f]";
   const subTextColor = isDarkMode ? "text-white/70" : "text-[#1f1f1f]/70";
@@ -110,7 +95,9 @@ export default function VoiceRangePage({ onBack, isDarkMode }: Props) {
 
                 <div className={`mt-6 rounded-2xl border ${border} ${mutedCardBg} p-6 md:p-7`}>
                   <p className={`text-[14px] tracking-wide ${subTextColor}`}>음역대 범위</p>
-                  <p className={`mt-2 text-[54px] md:text-[70px] font-bold leading-none ${textColor}`}>G3 ~ A4</p>
+                  <p className={`mt-2 text-[54px] md:text-[70px] font-bold leading-none ${textColor}`}>
+                    {hasMeasured ? `${lowNote} ~ ${highNote}` : "미측정"}
+                  </p>
 
                   <div
                     className={`mt-5 rounded-2xl border ${border} ${
@@ -152,7 +139,9 @@ export default function VoiceRangePage({ onBack, isDarkMode }: Props) {
 
                     <div className={`mt-3 flex justify-between text-[13px] ${subTextColor}`}>
                       <span>C3</span>
-                      <span className="text-[#00efc4] font-semibold">G3 ~ A4</span>
+                      <span className="text-[#00efc4] font-semibold">
+                        {hasMeasured ? `${lowNote} ~ ${highNote}` : "미측정"}
+                      </span>
                       <span>C6</span>
                     </div>
                   </div>
@@ -163,14 +152,18 @@ export default function VoiceRangePage({ onBack, isDarkMode }: Props) {
                     <Mic2 className={`w-5 h-5 ${textColor}`} />
                     <p className={`text-[20px] font-semibold ${textColor}`}>음역 해석</p>
                   </div>
-                  <p className={`mt-3 text-[20px] leading-9 ${subTextColor} font-light`}>
-                    이 범위는 일반적으로{" "}
-                    <span className="text-[#00efc4] font-semibold">테너 ~ 하이 바리톤</span>에 가깝습니다.
-                  </p>
-                  <p className={`mt-3 text-[20px] leading-8 ${subTextColor} font-light`}>
-                    당신의 목소리는 피아노 건반 14개에 걸쳐 소리를 낼 수 있어요!
-                    1.17 옥타브 음역대를 가졌네요.
-                  </p>
+                  {hasMeasured ? (
+                    <p className={`mt-3 text-[20px] leading-8 ${subTextColor} font-light`}>
+                      최저음 <span className="text-[#00efc4] font-semibold">{lowNote}</span>부터
+                      최고음 <span className="text-[#00efc4] font-semibold">{highNote}</span>까지
+                      측정되었습니다.
+                    </p>
+                  ) : (
+                    <p className={`mt-3 text-[20px] leading-8 ${subTextColor} font-light`}>
+                      아직 음역대 테스트를 완료하지 않았습니다.
+                      홈으로 돌아가 테스트를 진행해주세요.
+                    </p>
+                  )}
                 </div>
               </section>
 

@@ -1,15 +1,19 @@
 import { useState } from "react";
-import { ArrowLeft, Check, Lock, Mail, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowLeft, Lock, UserRound } from "lucide-react";
+import { login } from "./api/authApi";
 
 type Props = {
   onBack: () => void;
+  onLogin?: (user: object) => void;
   isDarkMode: boolean;
 };
 
-export default function LoginPage({ onBack, isDarkMode }: Props) {
-  const [email, setEmail] = useState("");
+export default function LoginPage({ onBack, onLogin, isDarkMode }: Props) {
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const bgColor = isDarkMode ? "bg-[#1f1f1f]/60" : "bg-[#f8f7f9]/60";
   const textColor = isDarkMode ? "text-white" : "text-[#1f1f1f]";
@@ -21,11 +25,21 @@ export default function LoginPage({ onBack, isDarkMode }: Props) {
   const inputBg = isDarkMode ? "bg-black/20" : "bg-white/80";
   const placeholderColor = isDarkMode ? "placeholder:text-white/35" : "placeholder:text-black/35";
 
-  const features = [
-    "내 음역대 기반 맞춤 곡 추천",
-    "키 조절 반주 저장 및 바로 재생",
-    "실시간 피치 분석 기록 확인",
-  ];
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const user = await login(username, password);
+      if (rememberMe) localStorage.setItem("user", JSON.stringify(user));
+      onLogin?.(user);
+      onBack();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "로그인에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div
@@ -88,18 +102,18 @@ export default function LoginPage({ onBack, isDarkMode }: Props) {
                 </div>
               </div>
 
-              <form className="mt-8 space-y-5">
+              <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
                 <label className="block">
-                  <span className={`mb-2 block text-sm font-medium ${subTextColor}`}>이메일</span>
+                  <span className={`mb-2 block text-sm font-medium ${subTextColor}`}>아이디</span>
                   <div
                     className={`flex items-center gap-3 rounded-2xl border ${border} ${inputBg} px-4 py-4`}
                   >
-                    <Mail className={`w-5 h-5 ${subTextColor}`} />
+                    <UserRound className={`w-5 h-5 ${subTextColor}`} />
                     <input
-                      type="email"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      placeholder="you@example.com"
+                      type="text"
+                      value={username}
+                      onChange={(event) => setUsername(event.target.value)}
+                      placeholder="아이디를 입력하세요"
                       className={`w-full bg-transparent outline-none text-[16px] ${textColor} ${placeholderColor}`}
                     />
                   </div>
@@ -137,11 +151,15 @@ export default function LoginPage({ onBack, isDarkMode }: Props) {
                   </button>
                 </div>
 
+                {error && (
+                  <p className="text-sm text-red-400 text-center">{error}</p>
+                )}
                 <button
                   type="submit"
-                  className="w-full rounded-2xl bg-gradient-to-r from-[#00d9b1] to-[#00efc4] py-4 text-[17px] font-semibold text-white shadow-xl shadow-[#00d9b1]/20 transition-transform hover:scale-[1.01] active:scale-100"
+                  disabled={loading}
+                  className="w-full rounded-2xl bg-gradient-to-r from-[#00d9b1] to-[#00efc4] py-4 text-[17px] font-semibold text-white shadow-xl shadow-[#00d9b1]/20 transition-transform hover:scale-[1.01] active:scale-100 disabled:opacity-60"
                 >
-                  로그인하기
+                  {loading ? "로그인 중..." : "로그인하기"}
                 </button>
               </form>
 

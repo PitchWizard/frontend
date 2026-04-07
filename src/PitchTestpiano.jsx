@@ -167,7 +167,9 @@ function estimateTessitura(results, opts = {}) {
   return { tessitura: segments[0], segments };
 }
 
-export default function PitchTestPiano() {
+import saveVocalRange from "./api/vocalRangeApi";
+
+export default function PitchTestPiano({ userId, onTestComplete }) {
   const audioCtxRef = useRef(null);
   const analyserRef = useRef(null);
   const mediaStreamRef = useRef(null);
@@ -354,8 +356,23 @@ export default function PitchTestPiano() {
             2;
     }
 
-    const payload = tessitura ? { midi_min, midi_median, midi_max } : null;
-    console.log("📤 서버로 전송할 테시투라 MIDI 데이터:", JSON.stringify(payload, null, 2));
+    if (tessitura && userId) {
+      const payload = {
+        user_id: userId,
+        midi_min,
+        midi_median,
+        midi_max,
+        low_note: tessitura.low,
+        high_note: tessitura.high,
+        avg_rms: null,
+      };
+      try {
+        await saveVocalRange(payload);
+        onTestComplete?.({ midi_min, midi_median, midi_max, low_note: tessitura.low, high_note: tessitura.high });
+      } catch (e) {
+        console.error("음역대 저장 실패:", e);
+      }
+    }
 
     setStatus("done");
   }
