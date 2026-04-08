@@ -25,13 +25,37 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>("home");
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [user, setUser] = useState<any>(() => {
+    const saved = localStorage.getItem("user");
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  function handleLogin(userData: any) {
+    setUser(userData);
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("user");
+    setUser(null);
+  }
 
   if (currentPage === "login") {
-    return <LoginPage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} />;
+    return <LoginPage onBack={() => setCurrentPage("home")} onLogin={handleLogin} isDarkMode={isDarkMode} />;
   }
 
   if (currentPage === "test") {
-    return <PitchTest onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} />;
+    return (
+      <PitchTest
+        onBack={() => setCurrentPage("home")}
+        isDarkMode={isDarkMode}
+        user={user}
+        onTestComplete={(updated: any) => {
+          const newUser = { ...user, ...updated };
+          setUser(newUser);
+          localStorage.setItem("user", JSON.stringify(newUser));
+        }}
+      />
+    );
   }
 
   if (currentPage === "search") {
@@ -39,11 +63,11 @@ export default function App() {
   }
 
   if (currentPage === "accompaniment") {
-    return <AccompanimentPage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} />;
+    return <AccompanimentPage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} user={user} />;
   }
 
   if (currentPage === "range") {
-    return <VoiceRangePage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} />;
+    return <VoiceRangePage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} user={user} />;
   }
 
   const bgColor = isDarkMode ? "bg-[#1f1f1f]/60" : "bg-[#f8f7f9]/60";
@@ -85,15 +109,29 @@ export default function App() {
             </h1>
 
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setCurrentPage("login")}
-                className={`px-4 py-2 rounded-full border ${border} ${cardBg} ${textColor} transition-colors ${
-                  isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
-                } flex items-center gap-2`}
-              >
-                <LogIn className="w-4 h-4" />
-                로그인
-              </button>
+              {user ? (
+                <div className="flex items-center gap-3">
+                  <span className={`text-sm ${textSecondary}`}>{user.username}</span>
+                  <button
+                    onClick={handleLogout}
+                    className={`px-4 py-2 rounded-full border ${border} ${cardBg} ${textColor} transition-colors ${
+                      isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
+                    } text-sm`}
+                  >
+                    로그아웃
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setCurrentPage("login")}
+                  className={`px-4 py-2 rounded-full border ${border} ${cardBg} ${textColor} transition-colors ${
+                    isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
+                  } flex items-center gap-2`}
+                >
+                  <LogIn className="w-4 h-4" />
+                  로그인
+                </button>
+              )}
 
               <button
                 onClick={() => setIsDarkMode(!isDarkMode)}
