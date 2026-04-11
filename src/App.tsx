@@ -17,9 +17,10 @@ import AccompanimentPage from "./AccompanimentPage.tsx";
 import LoginPage from "./LoginPage.tsx";
 import PitchTest from "./PitchTest.tsx";
 import SearchPage from "./SearchPage.tsx";
+import SignupPage from "./SignupPage.tsx";
 import VoiceRangePage from "./VoiceRangePage.tsx";
 
-type Page = "home" | "login" | "test" | "search" | "accompaniment" | "range";
+type Page = "home" | "login" | "signup" | "test" | "search" | "accompaniment" | "range";
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>("home");
@@ -40,7 +41,24 @@ export default function App() {
   }
 
   if (currentPage === "login") {
-    return <LoginPage onBack={() => setCurrentPage("home")} onLogin={handleLogin} isDarkMode={isDarkMode} />;
+    return (
+      <LoginPage
+        onBack={() => setCurrentPage("home")}
+        onLogin={handleLogin}
+        onGoSignup={() => setCurrentPage("signup")}
+        isDarkMode={isDarkMode}
+      />
+    );
+  }
+
+  if (currentPage === "signup") {
+    return (
+      <SignupPage
+        onBack={() => setCurrentPage("home")}
+        onGoLogin={() => setCurrentPage("login")}
+        isDarkMode={isDarkMode}
+      />
+    );
   }
 
   if (currentPage === "test") {
