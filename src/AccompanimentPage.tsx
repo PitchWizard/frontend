@@ -9,6 +9,9 @@ type Props = {
   onBack: () => void;
   isDarkMode: boolean;
   user: any;
+  initialSongId?: number | string;
+  initialSongTitle?: string;
+  initialSongArtist?: string;
 };
 
 type Song = {
@@ -36,7 +39,14 @@ function midiToNoteName(midi: number): string {
   return names[midi % 12] + oct;
 }
 
-export default function AccompanimentPage({ onBack, isDarkMode, user }: Props) {
+export default function AccompanimentPage({
+  onBack,
+  isDarkMode,
+  user,
+  initialSongId,
+  initialSongTitle,
+  initialSongArtist,
+}: Props) {
   const [songs, setSongs] = useState<Song[]>([]);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -80,6 +90,29 @@ export default function AccompanimentPage({ onBack, isDarkMode, user }: Props) {
   useEffect(() => {
     axios.get(`${BASE_URL}/songs`).then((r) => setSongs(r.data));
   }, []);
+
+  // 상세 페이지에서 진입한 경우 해당 곡을 자동 선택
+  useEffect(() => {
+    if (!songs.length || selectedSong) return;
+    if (!initialSongId && !initialSongTitle) return;
+
+    const normalizedId = Number(initialSongId);
+    const matched =
+      songs.find((item) => Number.isFinite(normalizedId) && item.song_id === normalizedId) ||
+      songs.find(
+        (item) =>
+          !!initialSongTitle &&
+          item.title === initialSongTitle &&
+          (!initialSongArtist || item.artist === initialSongArtist),
+      );
+
+    if (matched) {
+      setSelectedSong(matched);
+      setSearchQuery("");
+      setShowList(false);
+      setSemitones(0);
+    }
+  }, [songs, selectedSong, initialSongId, initialSongTitle, initialSongArtist]);
 
   // 곡 선택 시 피치 프레임 로드
   useEffect(() => {

@@ -17,15 +17,30 @@ import AccompanimentPage from "./AccompanimentPage.tsx";
 import LoginPage from "./LoginPage.tsx";
 import PitchTest from "./PitchTest.tsx";
 import SearchPage from "./SearchPage.tsx";
+import SongDetailPage from "./SongDetailPage.tsx";
 import SignupPage from "./SignupPage.tsx";
 import VoiceRangePage from "./VoiceRangePage.tsx";
 
-type Page = "home" | "login" | "signup" | "test" | "search" | "accompaniment" | "range";
+type Page = "home" | "login" | "signup" | "test" | "search" | "songDetail" | "accompaniment" | "range";
+
+type SelectedSong = {
+  id: string | number;
+  title: string;
+  artist: string;
+  album?: string;
+  duration?: string;
+  midiMin?: number | null;
+  midiMedian?: number | null;
+  midiMax?: number | null;
+  rmsMean?: number | null;
+  rmsStd?: number | null;
+};
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>("home");
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [selectedSong, setSelectedSong] = useState<SelectedSong | null>(null);
   const [user, setUser] = useState<any>(() => {
     const saved = localStorage.getItem("user");
     return saved ? JSON.parse(saved) : null;
@@ -77,11 +92,54 @@ export default function App() {
   }
 
   if (currentPage === "search") {
-    return <SearchPage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} />;
+    return (
+      <SearchPage
+        onBack={() => setCurrentPage("home")}
+        isDarkMode={isDarkMode}
+        onSelectSong={(song) => {
+          setSelectedSong(song);
+          setCurrentPage("songDetail");
+        }}
+      />
+    );
+  }
+
+  if (currentPage === "songDetail" && selectedSong) {
+    return (
+      <SongDetailPage
+        onBack={() => setCurrentPage("search")}
+        onGoAccompaniment={() => setCurrentPage("accompaniment")}
+        isDarkMode={isDarkMode}
+        user={user}
+        song={selectedSong}
+      />
+    );
+  }
+
+  if (currentPage === "songDetail" && !selectedSong) {
+    return (
+      <SearchPage
+        onBack={() => setCurrentPage("home")}
+        isDarkMode={isDarkMode}
+        onSelectSong={(song) => {
+          setSelectedSong(song);
+          setCurrentPage("songDetail");
+        }}
+      />
+    );
   }
 
   if (currentPage === "accompaniment") {
-    return <AccompanimentPage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} user={user} />;
+    return (
+      <AccompanimentPage
+        onBack={() => setCurrentPage("home")}
+        isDarkMode={isDarkMode}
+        user={user}
+        initialSongId={selectedSong?.id}
+        initialSongTitle={selectedSong?.title}
+        initialSongArtist={selectedSong?.artist}
+      />
+    );
   }
 
   if (currentPage === "range") {
