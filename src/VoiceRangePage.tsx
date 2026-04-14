@@ -13,6 +13,7 @@ type Props = {
   onBack: () => void;
   isDarkMode: boolean;
   user: any;
+  onSelectSinger?: (name: string) => void;
 };
 
 const whiteKeys = [
@@ -27,7 +28,7 @@ function getNoteWhiteIndex(note: string): number {
 
 type SimilarSinger = { name: string; range: string; overlap: string };
 
-export default function VoiceRangePage({ onBack, isDarkMode, user }: Props) {
+export default function VoiceRangePage({ onBack, isDarkMode, user, onSelectSinger }: Props) {
   const lowNote: string | null = user?.low_note ?? null;
   const highNote: string | null = user?.high_note ?? null;
   const rangeStartWhiteIndex = lowNote ? getNoteWhiteIndex(lowNote) : -1;
@@ -206,9 +207,11 @@ export default function VoiceRangePage({ onBack, isDarkMode, user }: Props) {
 
                 <div className="mt-5 px-1 md:px-2 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {similarSingers.map((singer) => (
-                    <div
+                    <button
                       key={singer.name}
-                      className={`rounded-2xl border ${border} ${mutedCardBg} px-5 py-4 md:px-6 md:py-5 flex items-start gap-3 shadow-lg shadow-black/10`}
+                      type="button"
+                      onClick={() => onSelectSinger?.(singer.name)}
+                      className={`text-left rounded-2xl border ${border} ${mutedCardBg} px-5 py-4 md:px-6 md:py-5 flex items-start gap-3 shadow-lg shadow-black/10 transition-colors ${isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"}`}
                     >
                       <div className="mt-0.5 h-9 w-1 rounded-full bg-gradient-to-b from-[#00efc4] to-[#00b894]" />
                       <div className="min-w-0">
@@ -216,7 +219,7 @@ export default function VoiceRangePage({ onBack, isDarkMode, user }: Props) {
                         <p className="text-[#00efc4] text-[14px] mt-1">{singer.range}</p>
                         <p className={`mt-2 text-[14px] leading-6 ${subTextColor}`}>{singer.overlap}</p>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </section>

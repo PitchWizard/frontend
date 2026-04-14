@@ -17,11 +17,12 @@ import AccompanimentPage from "./AccompanimentPage.tsx";
 import LoginPage from "./LoginPage.tsx";
 import PitchTest from "./PitchTest.tsx";
 import SearchPage from "./SearchPage.tsx";
+import SingerPage from "./SingerPage.tsx";
 import SongDetailPage from "./SongDetailPage.tsx";
 import SignupPage from "./SignupPage.tsx";
 import VoiceRangePage from "./VoiceRangePage.tsx";
 
-type Page = "home" | "login" | "signup" | "test" | "search" | "songDetail" | "accompaniment" | "range";
+type Page = "home" | "login" | "signup" | "test" | "search" | "songDetail" | "accompaniment" | "range" | "singer";
 
 type SelectedSong = {
   id: string | number;
@@ -41,6 +42,8 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedSong, setSelectedSong] = useState<SelectedSong | null>(null);
+  const [selectedSinger, setSelectedSinger] = useState<string | null>(null);
+  const [singerFrom, setSingerFrom] = useState<Page>("home");
   const [user, setUser] = useState<any>(() => {
     const saved = localStorage.getItem("user");
     return saved ? JSON.parse(saved) : null;
@@ -100,6 +103,7 @@ export default function App() {
           setSelectedSong(song);
           setCurrentPage("songDetail");
         }}
+        onSelectSinger={(name) => { setSelectedSinger(name); setSingerFrom("search"); setCurrentPage("singer"); }}
       />
     );
   }
@@ -143,7 +147,24 @@ export default function App() {
   }
 
   if (currentPage === "range") {
-    return <VoiceRangePage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} user={user} />;
+    return (
+      <VoiceRangePage
+        onBack={() => setCurrentPage("home")}
+        isDarkMode={isDarkMode}
+        user={user}
+        onSelectSinger={(name) => { setSelectedSinger(name); setSingerFrom("range"); setCurrentPage("singer"); }}
+      />
+    );
+  }
+
+  if (currentPage === "singer" && selectedSinger) {
+    return (
+      <SingerPage
+        singerName={selectedSinger}
+        onBack={() => setCurrentPage(singerFrom)}
+        isDarkMode={isDarkMode}
+      />
+    );
   }
 
   const bgColor = isDarkMode ? "bg-[#1f1f1f]/60" : "bg-[#f8f7f9]/60";

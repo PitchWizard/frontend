@@ -6,6 +6,7 @@ type Props = {
   onBack: () => void;
   isDarkMode: boolean;
   onSelectSong?: (song: SongItem) => void;
+  onSelectSinger?: (name: string) => void;
 };
 
 type SongItem = {
@@ -51,7 +52,7 @@ function formatRangeLabel(song: SongItem) {
   return song.key ? `키 ${song.key}` : "";
 }
 
-export default function SearchPage({ onBack, isDarkMode, onSelectSong }: Props) {
+export default function SearchPage({ onBack, isDarkMode, onSelectSong, onSelectSinger }: Props) {
   const [query, setQuery] = useState("");
   const [catalog, setCatalog] = useState<SongItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -217,7 +218,13 @@ export default function SearchPage({ onBack, isDarkMode, onSelectSong }: Props) 
                             <p className={`truncate text-[18px] font-semibold ${textColor}`}>
                               {song.title}
                             </p>
-                            <p className={`truncate text-sm ${subTextColor}`}>{song.artist}</p>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); onSelectSinger?.(song.artist); }}
+                              className={`truncate text-sm ${subTextColor} hover:text-[#00efc4] transition-colors`}
+                            >
+                              {song.artist}
+                            </button>
                           </div>
                         </div>
 
