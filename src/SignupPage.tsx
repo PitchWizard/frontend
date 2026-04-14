@@ -1,19 +1,20 @@
 import { useState } from "react";
-import { ArrowLeft, Lock, UserRound } from "lucide-react";
-import { login } from "./api/authApi";
+import { ArrowLeft, Check, Lock, Mail, UserRound, X } from "lucide-react";
+import { signup } from "./api/authApi";
 
 type Props = {
   onBack: () => void;
-  onLogin?: (user: object) => void;
-  onGoSignup?: () => void;
+  onGoLogin?: () => void;
   isDarkMode: boolean;
 };
 
-export default function LoginPage({ onBack, onLogin, onGoSignup, isDarkMode }: Props) {
+export default function SignupPage({ onBack, onGoLogin, isDarkMode }: Props) {
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(true);
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
   const bgColor = isDarkMode ? "bg-[#1f1f1f]/60" : "bg-[#f8f7f9]/60";
@@ -25,18 +26,63 @@ export default function LoginPage({ onBack, onLogin, onGoSignup, isDarkMode }: P
   const mutedCardBg = isDarkMode ? "bg-white/5" : "bg-[#1f1f1f]/5";
   const inputBg = isDarkMode ? "bg-black/20" : "bg-white/80";
   const placeholderColor = isDarkMode ? "placeholder:text-white/35" : "placeholder:text-black/35";
+  const passwordPolicyText = "8자 이상, 영문 대/소문자, 숫자를 포함해 주세요.";
+
+  function isValidPassword(value: string) {
+    const hasMinLength = value.length >= 8;
+    const hasUppercase = /[A-Z]/.test(value);
+    const hasLowercase = /[a-z]/.test(value);
+    const hasNumber = /\d/.test(value);
+    return hasMinLength && hasUppercase && hasLowercase && hasNumber;
+  }
+
+  const passwordChecks = [
+    { label: "8자 이상", valid: password.length >= 8 },
+    { label: "영문 대문자 포함", valid: /[A-Z]/.test(password) },
+    { label: "영문 소문자 포함", valid: /[a-z]/.test(password) },
+    { label: "숫자 포함", valid: /\d/.test(password) },
+  ];
+
+  function isValidEmail(value: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError("");
+    setSuccess("");
+
+    const normalizedEmail = email.trim();
+
+    if (!username || !normalizedEmail || !password || !confirmPassword) {
+      setError("모든 항목을 입력해 주세요.");
+      return;
+    }
+
+    if (!isValidEmail(normalizedEmail)) {
+      setError("올바른 이메일 형식을 입력해 주세요.");
+      return;
+    }
+
+    if (!isValidPassword(password)) {
+      setError(`비밀번호 규칙을 확인해 주세요. (${passwordPolicyText})`);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("비밀번호 확인이 일치하지 않습니다.");
+      return;
+    }
+
     setLoading(true);
     try {
-      const user = await login(username, password);
-      if (rememberMe) localStorage.setItem("user", JSON.stringify(user));
-      onLogin?.(user);
-      onBack();
+      await signup({ username, email: normalizedEmail, password });
+      setSuccess("회원가입이 완료되었습니다. 로그인해 주세요.");
+      setTimeout(() => {
+        onGoLogin?.();
+      }, 900);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "로그인에 실패했습니다.");
+      setError(err.response?.data?.detail || "회원가입에 실패했습니다.");
     } finally {
       setLoading(false);
     }
@@ -86,8 +132,8 @@ export default function LoginPage({ onBack, onLogin, onGoSignup, isDarkMode }: P
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className={`text-sm uppercase tracking-[0.24em] ${subTextColor}`}>Account Access</p>
-                  <h3 className={`mt-3 text-3xl font-semibold ${textColor}`}>로그인</h3>
+                  <p className={`text-sm uppercase tracking-[0.24em] ${subTextColor}`}>Create Account</p>
+                  <h3 className={`mt-3 text-3xl font-semibold ${textColor}`}>회원가입</h3>
                 </div>
                 <div
                   className={`flex h-14 w-14 items-center justify-center rounded-2xl ${
@@ -116,6 +162,22 @@ export default function LoginPage({ onBack, onLogin, onGoSignup, isDarkMode }: P
                 </label>
 
                 <label className="block">
+                  <span className={`mb-2 block text-sm font-medium ${subTextColor}`}>이메일</span>
+                  <div
+                    className={`flex items-center gap-3 rounded-2xl border ${border} ${inputBg} px-4 py-4`}
+                  >
+                    <Mail className={`w-5 h-5 ${subTextColor}`} />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="you@example.com"
+                      className={`w-full bg-transparent outline-none text-[16px] ${textColor} ${placeholderColor}`}
+                    />
+                  </div>
+                </label>
+
+                <label className="block">
                   <span className={`mb-2 block text-sm font-medium ${subTextColor}`}>비밀번호</span>
                   <div
                     className={`flex items-center gap-3 rounded-2xl border ${border} ${inputBg} px-4 py-4`}
@@ -129,32 +191,46 @@ export default function LoginPage({ onBack, onLogin, onGoSignup, isDarkMode }: P
                       className={`w-full bg-transparent outline-none text-[16px] ${textColor} ${placeholderColor}`}
                     />
                   </div>
+                  <p className={`mt-2 text-xs ${subTextColor}`}>{passwordPolicyText}</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {passwordChecks.map((item) => (
+                      <div key={item.label} className="flex items-center gap-2 text-sm">
+                        {item.valid ? (
+                          <Check className="h-4 w-4 text-emerald-400" />
+                        ) : (
+                          <X className="h-4 w-4 text-white/35" />
+                        )}
+                        <span className={item.valid ? "text-emerald-300" : subTextColor}>{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
                 </label>
 
-                <div className="flex items-center justify-between gap-4 pt-1">
-                  <label className={`flex items-center gap-3 text-sm ${subTextColor}`}>
+                <label className="block">
+                  <span className={`mb-2 block text-sm font-medium ${subTextColor}`}>비밀번호 확인</span>
+                  <div
+                    className={`flex items-center gap-3 rounded-2xl border ${border} ${inputBg} px-4 py-4`}
+                  >
+                    <Lock className={`w-5 h-5 ${subTextColor}`} />
                     <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={() => setRememberMe((value) => !value)}
-                      className="h-4 w-4 rounded border-white/30 accent-[#00d9b1]"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      placeholder="비밀번호를 다시 입력하세요"
+                      className={`w-full bg-transparent outline-none text-[16px] ${textColor} ${placeholderColor}`}
                     />
-                    로그인 상태 유지
-                  </label>
-
-                  <button type="button" className="text-sm font-medium text-[#00d9b1]">
-                    비밀번호 찾기
-                  </button>
-                </div>
+                  </div>
+                </label>
 
                 {error ? <p className="text-sm text-red-400 text-center">{error}</p> : null}
+                {success ? <p className="text-sm text-emerald-300 text-center">{success}</p> : null}
 
                 <button
                   type="submit"
                   disabled={loading}
                   className="w-full rounded-2xl bg-gradient-to-r from-[#00d9b1] to-[#00efc4] py-4 text-[17px] font-semibold text-white shadow-xl shadow-[#00d9b1]/20 transition-transform hover:scale-[1.01] active:scale-100 disabled:opacity-60"
                 >
-                  {loading ? "로그인 중..." : "로그인하기"}
+                  {loading ? "가입 중..." : "회원가입"}
                 </button>
               </form>
 
@@ -184,13 +260,9 @@ export default function LoginPage({ onBack, onLogin, onGoSignup, isDarkMode }: P
               </div>
 
               <p className={`mt-8 text-center text-sm ${subTextColor}`}>
-                계정이 없으신가요?{" "}
-                <button
-                  type="button"
-                  onClick={onGoSignup}
-                  className="font-semibold text-[#00d9b1]"
-                >
-                  회원가입
+                이미 계정이 있으신가요?{" "}
+                <button type="button" onClick={onGoLogin} className="font-semibold text-[#00d9b1]">
+                  로그인
                 </button>
               </p>
             </section>
