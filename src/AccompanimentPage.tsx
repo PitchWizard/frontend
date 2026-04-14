@@ -134,41 +134,50 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
 
   // 통합 RAF 루프: origPitch + userPitch + canvas를 같은 프레임에서 처리
   useEffect(() => {
-    function loop() {
-      // 1) 원곡 피치 (재생 중일 때만)
-      const pf = pitchFramesRef.current;
-      if (isPlayingRef.current && pf) {
-        const t = audioRef.current?.currentTime ?? 0;
-        const idx = Math.round((t * 1000) / pf.hop_ms);
-        const hz = idx < pf.hz.length ? pf.hz[idx] : null;
-        const midi = hz ? hzToMidi(hz) : null;
-        setOriginalPitch(midi);
-        origPitchHistory.current.push(midi);
-        if (origPitchHistory.current.length > MAX_HISTORY)
-          origPitchHistory.current.shift();
-      }
+    const SAMPLE_INTERVAL = 100; // 0.1초마다 피치 샘플링
+    let lastSampleTime = 0;
 
-      // 2) 마이크 피치 (마이크 켜져 있을 때만)
-      if (isMicOnRef.current && analyserRef.current && audioCtxRef.current && detectorRef.current && micBufRef.current) {
-        const buf = micBufRef.current as Float32Array<ArrayBuffer>;
-        analyserRef.current.getFloatTimeDomainData(buf);
-        const [freq, clarity] = detectorRef.current.findPitch(buf, audioCtxRef.current.sampleRate);
-        const raw = clarity > 0.8 && freq > 60 ? hzToMidi(freq) : null;
+    function loop(timestamp: number) {
+      const shouldSample = timestamp - lastSampleTime >= SAMPLE_INTERVAL;
 
-        const history = userPitchHistory.current;
-        let midi = raw;
-        if (midi === null && history.length > 0) {
-          const recent = history.slice(-3);
-          const lastValid = [...recent].reverse().find((v) => v !== null);
-          if (lastValid !== undefined) midi = lastValid;
+      if (shouldSample) {
+        lastSampleTime = timestamp;
+
+        // 1) 원곡 피치 (재생 중일 때만)
+        const pf = pitchFramesRef.current;
+        if (isPlayingRef.current && pf) {
+          const t = audioRef.current?.currentTime ?? 0;
+          const idx = Math.round((t * 1000) / pf.hop_ms);
+          const hz = idx < pf.hz.length ? pf.hz[idx] : null;
+          const midi = hz ? hzToMidi(hz) : null;
+          setOriginalPitch(midi);
+          origPitchHistory.current.push(midi);
+          if (origPitchHistory.current.length > MAX_HISTORY)
+            origPitchHistory.current.shift();
         }
-        setUserPitch(midi);
-        userPitchHistory.current.push(midi);
-        if (userPitchHistory.current.length > MAX_HISTORY)
-          userPitchHistory.current.shift();
+
+        // 2) 마이크 피치 (마이크 켜져 있을 때만)
+        if (isMicOnRef.current && analyserRef.current && audioCtxRef.current && detectorRef.current && micBufRef.current) {
+          const buf = micBufRef.current as Float32Array<ArrayBuffer>;
+          analyserRef.current.getFloatTimeDomainData(buf);
+          const [freq, clarity] = detectorRef.current.findPitch(buf, audioCtxRef.current.sampleRate);
+          const raw = clarity > 0.8 && freq > 60 ? hzToMidi(freq) : null;
+
+          const history = userPitchHistory.current;
+          let midi = raw;
+          if (midi === null && history.length > 0) {
+            const recent = history.slice(-3);
+            const lastValid = [...recent].reverse().find((v) => v !== null);
+            if (lastValid !== undefined) midi = lastValid;
+          }
+          setUserPitch(midi);
+          userPitchHistory.current.push(midi);
+          if (userPitchHistory.current.length > MAX_HISTORY)
+            userPitchHistory.current.shift();
+        }
       }
 
-      // 3) Canvas 렌더
+      // Canvas 렌더는 매 프레임 (60fps 유지)
       drawCanvas();
 
       mainRafRef.current = requestAnimationFrame(loop);
