@@ -67,7 +67,7 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
   // 피치 히스토리 (Canvas용)
   const userPitchHistory = useRef<(number | null)[]>([]);
   const origPitchHistory = useRef<(number | null)[]>([]);
-  const MAX_HISTORY = 300;
+  const MAX_HISTORY = 30;
   const pitchFramesRef = useRef<PitchFrames | null>(null);
   const selectedSongRef = useRef<Song | null>(null);
 
@@ -311,7 +311,7 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
 
       // 실제 피치 구간만 캡슐로 강조
       if (isReal) {
-        const capW = step * 3;   // 가로: 샘플 간격의 3배
+        const capW = step * 10;   // 가로: 샘플 간격의 3배
         const capH = 7;          // 세로: 고정 높이
         const r = capH / 2;
         ctx.fillStyle = dotColor;
