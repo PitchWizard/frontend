@@ -72,6 +72,9 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
   const isMicOnRef = useRef(false);
   const detectorRef = useRef<ReturnType<typeof PitchDetector.forFloat32Array> | null>(null);
   const micBufRef = useRef<Float32Array | null>(null);
+  // 샘플링 타이머 (외부에서 리셋 가능하도록 ref로 관리)
+  const SAMPLE_INTERVAL = 100;
+  const lastSampleTimeRef = useRef(-100);
 
   const border = isDarkMode ? "border-white/10" : "border-[#1f1f1f]/10";
   const textColor = isDarkMode ? "text-white" : "text-[#1f1f1f]";
@@ -134,14 +137,11 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
 
   // 통합 RAF 루프: origPitch + userPitch + canvas를 같은 프레임에서 처리
   useEffect(() => {
-    const SAMPLE_INTERVAL = 100; // 0.1초마다 피치 샘플링
-    let lastSampleTime = 0;
-
     function loop(timestamp: number) {
-      const shouldSample = timestamp - lastSampleTime >= SAMPLE_INTERVAL;
+      const shouldSample = timestamp - lastSampleTimeRef.current >= SAMPLE_INTERVAL;
 
       if (shouldSample) {
-        lastSampleTime = timestamp;
+        lastSampleTimeRef.current = timestamp;
 
         // 1) 원곡 피치 (재생 중일 때만)
         const pf = pitchFramesRef.current;
@@ -361,18 +361,29 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
     const url = `${BASE_URL}/songs/${song.song_id}/accompaniment?semitones=${semi}`;
     if (!audioRef.current) audioRef.current = new Audio();
     else audioRef.current.pause();
+
+    isPlayingRef.current = false; // 이전 루프가 기록하지 않도록 먼저 중단
     audioRef.current.src = url;
-    audioRef.current.onended = () => setIsPlaying(false);
-    await audioRef.current.play();
-    setIsPlaying(true);
+    audioRef.current.onended = () => {
+      setIsPlaying(false);
+      isPlayingRef.current = false;
+    };
+
+    await audioRef.current.play(); // 오디오 재생 시작 대기
+
+    // 오디오가 실제로 재생된 순간 — 히스토리·타이머·ref를 동시에 리셋
     userPitchHistory.current = [];
     origPitchHistory.current = [];
+    lastSampleTimeRef.current = -SAMPLE_INTERVAL; // 다음 RAF 프레임에서 즉시 첫 샘플
+    isPlayingRef.current = true;  // 렌더 사이클 없이 직접 업데이트
+    setIsPlaying(true);           // UI 상태 동기화
   }
 
   async function togglePlay() {
     if (!selectedSong) return;
     if (isPlaying) {
       audioRef.current?.pause();
+      isPlayingRef.current = false;
       setIsPlaying(false);
       return;
     }
