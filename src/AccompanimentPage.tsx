@@ -573,9 +573,9 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
                 <canvas
                   ref={canvasRef}
                   width={1200}
-                  height={400}
+                  height={700}
                   className="w-full rounded-xl"
-                  style={{ height: "280px" }}
+                  style={{ height: "480px" }}
                 />
 
                 {/* 현재 피치 수치 */}
