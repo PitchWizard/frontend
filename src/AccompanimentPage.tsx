@@ -202,107 +202,128 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const W = canvas.width, H = canvas.height;
-    ctx.clearRect(0, 0, W, H);
 
-    // 배경
-    ctx.fillStyle = isDarkMode ? "#111" : "#f5f5f5";
-    ctx.fillRect(0, 0, W, H);
+    // 레이아웃
+    const LABEL_W = 44; // 왼쪽 노트 레이블 영역
+    const PLOT_W = W - LABEL_W;
 
-    // 보컬 음역대 기준으로 범위 좁힘 (C3~C6)
-    const MIDI_MIN = 48, MIDI_MAX = 72;
+    // C2(36) ~ C6(84): 4옥타브
+    const MIDI_MIN = 36, MIDI_MAX = 84;
+    const MIDI_CENTER = 60; // C4 고정
+
     function midiToY(m: number) {
       return H - ((m - MIDI_MIN) / (MIDI_MAX - MIDI_MIN)) * H;
     }
 
-    // 반음 단위 가이드라인
+    // 배경
+    ctx.fillStyle = isDarkMode ? "#0d0d0d" : "#f0f0f0";
+    ctx.fillRect(0, 0, W, H);
+
+    // 레이블 영역 배경
+    ctx.fillStyle = isDarkMode ? "#161616" : "#e8e8e8";
+    ctx.fillRect(0, 0, LABEL_W, H);
+
+    // 구분선
+    ctx.strokeStyle = isDarkMode ? "#2a2a2a" : "#ccc";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(LABEL_W, 0);
+    ctx.lineTo(LABEL_W, H);
+    ctx.stroke();
+
+    // 그리드 & 레이블
     for (let m = MIDI_MIN; m <= MIDI_MAX; m++) {
-      const isOctave = m % 12 === 0;
       const isC = m % 12 === 0;
+      const isBlack = [1, 3, 6, 8, 10].includes(m % 12);
       const y = midiToY(m);
-      ctx.strokeStyle = isOctave
-        ? (isDarkMode ? "#444" : "#bbb")
-        : (isDarkMode ? "#222" : "#e5e5e5");
-      ctx.lineWidth = isOctave ? 1.5 : 0.5;
+
+      // 플롯 영역 수평선
+      if (isC) {
+        ctx.strokeStyle = isDarkMode ? "#333" : "#c0c0c0";
+        ctx.lineWidth = 1.2;
+      } else if (!isBlack) {
+        ctx.strokeStyle = isDarkMode ? "#1a1a1a" : "#e0e0e0";
+        ctx.lineWidth = 0.5;
+      } else {
+        continue; // 검은 건반 위치는 선 생략
+      }
       ctx.beginPath();
-      ctx.moveTo(0, y);
+      ctx.moveTo(LABEL_W, y);
       ctx.lineTo(W, y);
       ctx.stroke();
+
+      // C4 강조선
+      if (m === MIDI_CENTER) {
+        ctx.strokeStyle = isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(LABEL_W, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      }
+
+      // 노트 레이블 (C만)
       if (isC) {
-        ctx.fillStyle = isDarkMode ? "#777" : "#888";
-        ctx.font = "bold 12px monospace";
-        ctx.fillText(midiToNoteName(m), 6, y - 4);
+        ctx.fillStyle = m === MIDI_CENTER
+          ? "#00d9b1"
+          : (isDarkMode ? "#555" : "#999");
+        ctx.font = `${m === MIDI_CENTER ? "bold" : ""} 11px monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText(midiToNoteName(m), LABEL_W / 2, y + 4);
       }
     }
 
-    const step = W / MAX_HISTORY;
-
-    const MIDI_CENTER = (MIDI_MIN + MIDI_MAX) / 2;
+    const step = PLOT_W / MAX_HISTORY;
 
     function drawTrack(
-      c: CanvasRenderingContext2D,
       history: (number | null)[],
-      color: string,
+      lineColor: string,
       dotColor: string,
       lineWidth: number,
-      fillNull?: number,
+      fillNull: number, // null일 때 대체 MIDI (C4)
+      isReal: boolean,  // 실제 피치 있을 때만 점
     ) {
-      const ctx = c;
       const N = history.length;
-      // 오른쪽 끝 = 현재 시점, 왼쪽으로 갈수록 과거
-      function xOf(i: number) {
-        return W - (N - 1 - i) * step;
-      }
+      function xOf(i: number) { return LABEL_W + PLOT_W - (N - 1 - i) * step; }
 
-      // 선
-      ctx.strokeStyle = color;
+      ctx.strokeStyle = lineColor;
       ctx.lineWidth = lineWidth;
       ctx.beginPath();
       let started = false;
       history.forEach((m, i) => {
-        const val = (m === null || m < MIDI_MIN || m > MIDI_MAX) ? (fillNull ?? null) : m;
-        if (val === null) { started = false; return; }
+        const val = (m === null || m < MIDI_MIN || m > MIDI_MAX) ? fillNull : m;
         const x = xOf(i), y = midiToY(val);
         if (!started) { ctx.moveTo(x, y); started = true; }
         else ctx.lineTo(x, y);
       });
       ctx.stroke();
 
-      // 점 (실제 피치값 있을 때만)
-      ctx.fillStyle = dotColor;
-      history.forEach((m, i) => {
-        if (m === null || m < MIDI_MIN || m > MIDI_MAX) return;
-        const x = xOf(i), y = midiToY(m);
-        ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fill();
-      });
+      // 실제 피치 구간만 점으로 강조
+      if (isReal) {
+        ctx.fillStyle = dotColor;
+        history.forEach((m, i) => {
+          if (m === null || m < MIDI_MIN || m > MIDI_MAX) return;
+          ctx.beginPath();
+          ctx.arc(xOf(i), midiToY(m), 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
     }
 
-    // 원곡 피치 (초록) — semitones 반영 + null 구간은 중앙선
+    // 원곡 피치 (초록) — null 구간은 C4 가이드선
     const semi = semitonesRef.current;
     const shiftedOrig = origPitchHistory.current.map((m) => m !== null ? m + semi : null);
-    drawTrack(ctx, shiftedOrig, "#00d9b1", "#00ffce", 2.5, MIDI_CENTER);
-    // 사용자 피치 (흰/파랑)
-    drawTrack(
-      ctx,
-      userPitchHistory.current,
-      isDarkMode ? "rgba(255,255,255,0.9)" : "#4c6ef5",
-      isDarkMode ? "#fff" : "#4c6ef5",
-      3,
-    );
+    drawTrack(shiftedOrig, "#00c49a", "#00ffce", 2, MIDI_CENTER, true);
 
-    // 현재 위치 (항상 오른쪽 끝)
-    const hasData = origPitchHistory.current.length > 0 || userPitchHistory.current.length > 0;
-    if (hasData) {
-      ctx.strokeStyle = isDarkMode ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(W, 0);
-      ctx.lineTo(W, H);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
+    // 사용자 피치 — null 구간은 C4 가이드선
+    drawTrack(
+      userPitchHistory.current,
+      isDarkMode ? "rgba(255,255,255,0.75)" : "#5a7df5",
+      isDarkMode ? "#fff" : "#4c6ef5",
+      2,
+      MIDI_CENTER,
+      true,
+    );
   }
 
   function stopSampling() {
