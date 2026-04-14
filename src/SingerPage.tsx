@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, BarChart3, Music2, UserRound } from "lucide-react";
+import { ArrowLeft, BarChart3, Music2 } from "lucide-react";
 import axios from "axios";
 
 const BASE_URL = "http://127.0.0.1:8000";
@@ -9,15 +9,24 @@ function midiToNote(midi: number): string {
   return names[midi % 12] + (Math.floor(midi / 12) - 1);
 }
 
-const whiteKeys = [
-  "C3","D3","E3","F3","G3","A3","B3",
-  "C4","D4","E4","F4","G4","A4","B4",
-  "C5","D5","E5","F5","G5","A5","B5","C6",
-];
+// 흰 건반 노트명 + 각 MIDI 값 (C3=48 ~ C6=84)
+const WHITE_KEY_NOTES = ["C","D","E","F","G","A","B"];
+const WHITE_KEY_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
 
-function getNoteWhiteIndex(note: string) {
-  return whiteKeys.indexOf(note);
+type WhiteKey = { note: string; midi: number; hasBlackRight: boolean };
+
+const whiteKeys: WhiteKey[] = [];
+for (let oct = 3; oct <= 5; oct++) {
+  WHITE_KEY_NOTES.forEach((n, i) => {
+    whiteKeys.push({
+      note: n + oct,
+      midi: (oct + 1) * 12 + WHITE_KEY_SEMITONES[i],
+      hasBlackRight: n !== "E" && n !== "B",
+    });
+  });
 }
+// C6 추가
+whiteKeys.push({ note: "C6", midi: 84, hasBlackRight: false });
 
 type Song = {
   song_id: number;
@@ -55,11 +64,16 @@ export default function SingerPage({ singerName, onBack, isDarkMode }: Props) {
     ? Math.round(validSongs.reduce((a, s) => a + s.midi_median, 0) / validSongs.length)
     : null;
 
-  const lowNote = avgMin ? midiToNote(avgMin) : null;
-  const highNote = avgMax ? midiToNote(avgMax) : null;
-  const rangeStartIdx = lowNote ? getNoteWhiteIndex(lowNote) : -1;
-  const rangeEndIdx = highNote ? getNoteWhiteIndex(highNote) : -1;
-  const hasMeasured = lowNote && highNote;
+  const lowNote = avgMin != null ? midiToNote(avgMin) : null;
+  const highNote = avgMax != null ? midiToNote(avgMax) : null;
+  const hasMeasured = avgMin != null && avgMax != null;
+
+  // 흑건 MIDI → 왼쪽 흰건에 귀속
+  function blackKeyOwner(midi: number) {
+    // 흑건은 바로 왼쪽 흰건 index 기준으로 색칠
+    const idx = whiteKeys.findIndex((k) => k.midi > midi);
+    return idx > 0 ? idx - 1 : -1;
+  }
 
   const bgColor = isDarkMode ? "bg-[#1f1f1f]/60" : "bg-[#f8f7f9]/60";
   const textColor = isDarkMode ? "text-white" : "text-[#1f1f1f]";
@@ -121,23 +135,23 @@ export default function SingerPage({ singerName, onBack, isDarkMode }: Props) {
                   <div className={`mt-5 rounded-2xl border ${border} ${isDarkMode ? "bg-black/30" : "bg-white/80"} p-4`}>
                     <div className="relative h-[120px] rounded-xl border border-black/15 overflow-hidden bg-gradient-to-b from-white to-[#f0f0f0]">
                       <div className="absolute inset-0 flex">
-                        {whiteKeys.map((note, index) => {
-                          const inRange = index >= rangeStartIdx && index <= rangeEndIdx;
-                          const noteHead = note[0];
-                          const hasBlackRight = noteHead !== "E" && noteHead !== "B";
+                        {whiteKeys.map((key, index) => {
+                          const whiteInRange = hasMeasured && key.midi >= avgMin! && key.midi <= avgMax!;
+                          const blackMidi = key.midi + 1; // 이 흰건 오른쪽 흑건 MIDI
+                          const blackInRange = hasMeasured && blackMidi >= avgMin! && blackMidi <= avgMax!;
                           return (
                             <div
-                              key={note}
+                              key={key.note}
                               className={`relative flex-1 border-r last:border-r-0 ${
-                                inRange
+                                whiteInRange
                                   ? "bg-gradient-to-b from-[#b8ffef] to-[#83f5d8] border-black/20"
                                   : "bg-gradient-to-b from-white to-[#ececec] border-black/15"
                               }`}
                             >
-                              {hasBlackRight && index < whiteKeys.length - 1 ? (
+                              {key.hasBlackRight && index < whiteKeys.length - 1 ? (
                                 <span
                                   className={`absolute right-0 top-0 translate-x-1/2 z-10 h-[66px] w-[54%] rounded-b-md border border-black/50 shadow-[0_7px_10px_rgba(0,0,0,0.35)] ${
-                                    inRange && index + 1 >= rangeStartIdx && index + 1 <= rangeEndIdx
+                                    blackInRange
                                       ? "bg-gradient-to-b from-[#00f3c8] to-[#00b894]"
                                       : "bg-gradient-to-b from-[#262626] to-black"
                                   }`}
@@ -189,19 +203,26 @@ export default function SingerPage({ singerName, onBack, isDarkMode }: Props) {
                     {songs.map((song) => (
                       <div
                         key={song.song_id}
-                        className={`flex items-center justify-between rounded-2xl border ${border} ${mutedCardBg} px-5 py-4`}
+                        className={`flex items-center justify-between gap-4 rounded-2xl border ${border} ${mutedCardBg} px-5 py-4`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${isDarkMode ? "bg-white/10" : "bg-[#1f1f1f]/10"}`}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isDarkMode ? "bg-white/10" : "bg-[#1f1f1f]/10"}`}>
                             <Music2 className={`h-4 w-4 ${textColor}`} />
                           </div>
-                          <p className={`text-[16px] font-medium ${textColor}`}>{song.title}</p>
+                          <p className={`truncate text-[16px] font-medium ${textColor}`}>{song.title}</p>
                         </div>
-                        {song.midi_min && song.midi_max ? (
-                          <span className="rounded-full border border-[#00d9b1]/35 px-3 py-1 text-xs text-[#00e5be]">
-                            {midiToNote(song.midi_min)} ~ {midiToNote(song.midi_max)}
-                          </span>
-                        ) : null}
+                        <div className="flex shrink-0 gap-2">
+                          {song.midi_min != null && song.midi_max != null ? (
+                            <span className="rounded-full border border-[#00d9b1]/35 px-3 py-1 text-xs text-[#00e5be]">
+                              {midiToNote(Math.round(song.midi_min))} ~ {midiToNote(Math.round(song.midi_max))}
+                            </span>
+                          ) : null}
+                          {song.midi_median != null ? (
+                            <span className={`rounded-full border ${border} px-3 py-1 text-xs ${subTextColor}`}>
+                              중앙 {midiToNote(Math.round(song.midi_median))}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                     ))}
                   </div>
