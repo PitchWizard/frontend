@@ -58,23 +58,17 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
-  const mainRafRef = useRef<number | null>(null);
+  const canvasRafRef = useRef<number | null>(null);
+  const sampleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const detectorRef = useRef<ReturnType<typeof PitchDetector.forFloat32Array> | null>(null);
+  const micBufRef = useRef<Float32Array | null>(null);
 
   // 피치 히스토리 (Canvas용)
   const userPitchHistory = useRef<(number | null)[]>([]);
   const origPitchHistory = useRef<(number | null)[]>([]);
   const MAX_HISTORY = 300;
-
-  // stale closure 방지용 refs
-  const isPlayingRef = useRef(false);
   const pitchFramesRef = useRef<PitchFrames | null>(null);
-  const isMicOnRef = useRef(false);
-  const detectorRef = useRef<ReturnType<typeof PitchDetector.forFloat32Array> | null>(null);
-  const micBufRef = useRef<Float32Array | null>(null);
-  // 샘플링 타이머 (외부에서 리셋 가능하도록 ref로 관리)
-  const SAMPLE_INTERVAL = 100;
-  const lastSampleTimeRef = useRef(-100);
 
   const border = isDarkMode ? "border-white/10" : "border-[#1f1f1f]/10";
   const textColor = isDarkMode ? "text-white" : "text-[#1f1f1f]";
@@ -130,63 +124,17 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
   // semitones ref 동기화
   useEffect(() => { semitonesRef.current = semitones; }, [semitones]);
 
-  // state → ref 동기화 (RAF 루프 stale closure 방지)
-  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  // pitchFrames ref 동기화 (sampleInterval 클로저에서 사용)
   useEffect(() => { pitchFramesRef.current = pitchFrames; }, [pitchFrames]);
-  useEffect(() => { isMicOnRef.current = isMicOn; }, [isMicOn]);
 
-  // 통합 RAF 루프: origPitch + userPitch + canvas를 같은 프레임에서 처리
+  // Canvas RAF: 그리기만 담당 (항상 60fps)
   useEffect(() => {
-    function loop(timestamp: number) {
-      const shouldSample = timestamp - lastSampleTimeRef.current >= SAMPLE_INTERVAL;
-
-      if (shouldSample) {
-        lastSampleTimeRef.current = timestamp;
-
-        // 1) 원곡 피치 (재생 중일 때만)
-        const pf = pitchFramesRef.current;
-        if (isPlayingRef.current && pf) {
-          const t = audioRef.current?.currentTime ?? 0;
-          const idx = Math.round((t * 1000) / pf.hop_ms);
-          const hz = idx < pf.hz.length ? pf.hz[idx] : null;
-          const midi = hz ? hzToMidi(hz) : null;
-          setOriginalPitch(midi);
-          origPitchHistory.current.push(midi);
-          if (origPitchHistory.current.length > MAX_HISTORY)
-            origPitchHistory.current.shift();
-        }
-
-        // 2) 마이크 피치 (마이크 켜져 있을 때만)
-        if (isMicOnRef.current && analyserRef.current && audioCtxRef.current && detectorRef.current && micBufRef.current) {
-          const buf = micBufRef.current as Float32Array<ArrayBuffer>;
-          analyserRef.current.getFloatTimeDomainData(buf);
-          const [freq, clarity] = detectorRef.current.findPitch(buf, audioCtxRef.current.sampleRate);
-          const raw = clarity > 0.8 && freq > 60 ? hzToMidi(freq) : null;
-
-          const history = userPitchHistory.current;
-          let midi = raw;
-          if (midi === null && history.length > 0) {
-            const recent = history.slice(-3);
-            const lastValid = [...recent].reverse().find((v) => v !== null);
-            if (lastValid !== undefined) midi = lastValid;
-          }
-          setUserPitch(midi);
-          userPitchHistory.current.push(midi);
-          if (userPitchHistory.current.length > MAX_HISTORY)
-            userPitchHistory.current.shift();
-        }
-      }
-
-      // Canvas 렌더는 매 프레임 (60fps 유지)
+    function loop() {
       drawCanvas();
-
-      mainRafRef.current = requestAnimationFrame(loop);
+      canvasRafRef.current = requestAnimationFrame(loop);
     }
-
-    mainRafRef.current = requestAnimationFrame(loop);
-    return () => {
-      if (mainRafRef.current) cancelAnimationFrame(mainRafRef.current);
-    };
+    canvasRafRef.current = requestAnimationFrame(loop);
+    return () => { if (canvasRafRef.current) cancelAnimationFrame(canvasRafRef.current); };
   }, [isDarkMode]);
 
   async function startMic() {
@@ -357,33 +305,66 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
     }
   }
 
+  function stopSampling() {
+    if (sampleIntervalRef.current) {
+      clearInterval(sampleIntervalRef.current);
+      sampleIntervalRef.current = null;
+    }
+  }
+
   async function playWithSemitones(song: Song, semi: number) {
-    const url = `${BASE_URL}/songs/${song.song_id}/accompaniment?semitones=${semi}`;
+    stopSampling();
     if (!audioRef.current) audioRef.current = new Audio();
     else audioRef.current.pause();
 
-    isPlayingRef.current = false; // 이전 루프가 기록하지 않도록 먼저 중단
-    audioRef.current.src = url;
-    audioRef.current.onended = () => {
-      setIsPlaying(false);
-      isPlayingRef.current = false;
-    };
+    audioRef.current.src = `${BASE_URL}/songs/${song.song_id}/accompaniment?semitones=${semi}`;
+    audioRef.current.onended = () => { stopSampling(); setIsPlaying(false); };
 
-    await audioRef.current.play(); // 오디오 재생 시작 대기
+    await audioRef.current.play();
 
-    // 오디오가 실제로 재생된 순간 — 히스토리·타이머·ref를 동시에 리셋
+    // 재생 시작 순간 히스토리 초기화 후 interval 시작 → 둘 다 동시에 0초부터
     userPitchHistory.current = [];
     origPitchHistory.current = [];
-    lastSampleTimeRef.current = -SAMPLE_INTERVAL; // 다음 RAF 프레임에서 즉시 첫 샘플
-    isPlayingRef.current = true;  // 렌더 사이클 없이 직접 업데이트
-    setIsPlaying(true);           // UI 상태 동기화
+    setIsPlaying(true);
+
+    sampleIntervalRef.current = setInterval(() => {
+      const pf = pitchFramesRef.current;
+      const audio = audioRef.current;
+
+      // 원곡 피치
+      if (pf && audio) {
+        const idx = Math.round((audio.currentTime * 1000) / pf.hop_ms);
+        const hz = idx < pf.hz.length ? pf.hz[idx] : null;
+        const midi = hz ? hzToMidi(hz) : null;
+        setOriginalPitch(midi);
+        origPitchHistory.current.push(midi);
+        if (origPitchHistory.current.length > MAX_HISTORY) origPitchHistory.current.shift();
+      }
+
+      // 마이크 피치
+      if (analyserRef.current && audioCtxRef.current && detectorRef.current && micBufRef.current) {
+        const buf = micBufRef.current as Float32Array<ArrayBuffer>;
+        analyserRef.current.getFloatTimeDomainData(buf);
+        const [freq, clarity] = detectorRef.current.findPitch(buf, audioCtxRef.current.sampleRate);
+        const raw = clarity > 0.8 && freq > 60 ? hzToMidi(freq) : null;
+        const history = userPitchHistory.current;
+        let midi = raw;
+        if (midi === null && history.length > 0) {
+          const lastValid = [...history.slice(-3)].reverse().find((v) => v !== null);
+          if (lastValid !== undefined) midi = lastValid;
+        }
+        setUserPitch(midi);
+        userPitchHistory.current.push(midi);
+        if (userPitchHistory.current.length > MAX_HISTORY) userPitchHistory.current.shift();
+      }
+    }, 100);
   }
 
   async function togglePlay() {
     if (!selectedSong) return;
     if (isPlaying) {
       audioRef.current?.pause();
-      isPlayingRef.current = false;
+      stopSampling();
       setIsPlaying(false);
       return;
     }
