@@ -309,13 +309,17 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
       });
       ctx.stroke();
 
-      // 실제 피치 구간만 점으로 강조
+      // 실제 피치 구간만 캡슐로 강조
       if (isReal) {
+        const capW = step * 3;   // 가로: 샘플 간격의 3배
+        const capH = 7;          // 세로: 고정 높이
+        const r = capH / 2;
         ctx.fillStyle = dotColor;
         history.forEach((m, i) => {
           if (m === null || m < MIDI_MIN || m > MIDI_MAX) return;
+          const cx = xOf(i), cy = midiToY(m);
           ctx.beginPath();
-          ctx.arc(xOf(i), midiToY(m), 3, 0, Math.PI * 2);
+          ctx.roundRect(cx - capW / 2, cy - r, capW, capH, r);
           ctx.fill();
         });
       }
