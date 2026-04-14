@@ -287,7 +287,7 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
     const step = PLOT_W / MAX_HISTORY;
     // 1반음 높이 (블록 세로 크기)
     const semitoneH = H / (MIDI_MAX - MIDI_MIN);
-    const BLOCK_H = Math.max(4, semitoneH * 0.85); // 칸의 85%, 최소 4px
+    const BLOCK_H = Math.max(8, semitoneH * 2.5); // 2.5반음 높이
 
     function drawTrack(
       history: (number | null)[],
