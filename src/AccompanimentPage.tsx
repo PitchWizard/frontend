@@ -69,6 +69,7 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
   const origPitchHistory = useRef<(number | null)[]>([]);
   const MAX_HISTORY = 300;
   const pitchFramesRef = useRef<PitchFrames | null>(null);
+  const selectedSongRef = useRef<Song | null>(null);
 
   const border = isDarkMode ? "border-white/10" : "border-[#1f1f1f]/10";
   const textColor = isDarkMode ? "text-white" : "text-[#1f1f1f]";
@@ -126,6 +127,9 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
 
   // pitchFrames ref 동기화 (sampleInterval 클로저에서 사용)
   useEffect(() => { pitchFramesRef.current = pitchFrames; }, [pitchFrames]);
+
+  // selectedSong ref 동기화 (drawCanvas 클로저에서 사용)
+  useEffect(() => { selectedSongRef.current = selectedSong; }, [selectedSong]);
 
   // Canvas RAF: 그리기만 담당 (항상 60fps)
   useEffect(() => {
@@ -207,8 +211,15 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
     const LABEL_W = 44; // 왼쪽 노트 레이블 영역
     const PLOT_W = W - LABEL_W;
 
-    // C2(36) ~ C6(84): 4옥타브
-    const MIDI_MIN = 36, MIDI_MAX = 84;
+    // 선택된 곡의 음역대 기준으로 동적 범위 계산 (없으면 C3~C5 기본값)
+    const song = selectedSongRef.current;
+    const semi = semitonesRef.current;
+    const PAD = 5; // 위아래 패딩 (반음)
+    const rawMin = song ? song.midi_min + semi : 48;
+    const rawMax = song ? song.midi_max + semi : 72;
+    // C 경계로 맞춤 (더 깔끔한 그리드)
+    const MIDI_MIN = Math.max(24, Math.floor((rawMin - PAD) / 12) * 12);
+    const MIDI_MAX = Math.min(96, Math.ceil((rawMax + PAD) / 12) * 12);
     const MIDI_CENTER = 60; // C4 고정
 
     function midiToY(m: number) {
@@ -311,7 +322,6 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
     }
 
     // 원곡 피치 (초록) — null 구간은 C4 가이드선
-    const semi = semitonesRef.current;
     const shiftedOrig = origPitchHistory.current.map((m) => m !== null ? m + semi : null);
     drawTrack(shiftedOrig, "#00c49a", "#00ffce", 2, MIDI_CENTER, true);
 
@@ -367,13 +377,7 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
         const buf = micBufRef.current as Float32Array<ArrayBuffer>;
         analyserRef.current.getFloatTimeDomainData(buf);
         const [freq, clarity] = detectorRef.current.findPitch(buf, audioCtxRef.current.sampleRate);
-        const raw = clarity > 0.8 && freq > 60 ? hzToMidi(freq) : null;
-        const history = userPitchHistory.current;
-        let midi = raw;
-        if (midi === null && history.length > 0) {
-          const lastValid = [...history.slice(-3)].reverse().find((v) => v !== null);
-          if (lastValid !== undefined) midi = lastValid;
-        }
+        const midi = clarity > 0.8 && freq > 60 ? hzToMidi(freq) : null;
         setUserPitch(midi);
         userPitchHistory.current.push(midi);
         if (userPitchHistory.current.length > MAX_HISTORY) userPitchHistory.current.shift();
