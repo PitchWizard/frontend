@@ -285,22 +285,21 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
     }
 
     const step = PLOT_W / MAX_HISTORY;
-    // 1반음 높이 (블록 세로 크기)
-    const semitoneH = H / (MIDI_MAX - MIDI_MIN);
-    const BLOCK_H = Math.max(8, semitoneH * 2.5); // 2.5반음 높이
+    const LINE_W = 6; // 선 굵기
 
     function drawTrack(
       history: (number | null)[],
-      blockColor: string,
-      nullLineColor: string, // null 구간 가이드선 색
+      lineColor: string,
+      dotColor: string,
+      nullDashColor: string,
     ) {
       const N = history.length;
       function xOf(i: number) { return LABEL_W + PLOT_W - (N - 1 - i) * step; }
 
-      // null 구간 → C4 가이드 얇은 선
-      ctx.strokeStyle = nullLineColor;
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
+      // null 구간 → C4 점선 가이드
+      ctx.strokeStyle = nullDashColor;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 5]);
       ctx.beginPath();
       let started = false;
       history.forEach((m, i) => {
@@ -312,31 +311,46 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // 실제 피치 구간 → 채워진 블록
-      ctx.fillStyle = blockColor;
+      // 실제 피치 구간 → 굵은 선
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = LINE_W;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      let realStarted = false;
+      history.forEach((m, i) => {
+        if (m === null || m < MIDI_MIN || m > MIDI_MAX) { realStarted = false; return; }
+        const x = xOf(i), y = midiToY(m);
+        if (!realStarted) { ctx.moveTo(x, y); realStarted = true; }
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // 각 점 강조
+      ctx.fillStyle = dotColor;
       history.forEach((m, i) => {
         if (m === null || m < MIDI_MIN || m > MIDI_MAX) return;
-        const x = xOf(i) - step * 0.5;
-        const y = midiToY(m) - BLOCK_H / 2;
         ctx.beginPath();
-        ctx.roundRect(x, y, step * 0.9, BLOCK_H, 2);
+        ctx.arc(xOf(i), midiToY(m), LINE_W / 2 + 1, 0, Math.PI * 2);
         ctx.fill();
       });
     }
 
-    // 원곡 피치 (초록 블록)
+    // 원곡 피치 (초록)
     const shiftedOrig = origPitchHistory.current.map((m) => m !== null ? m + semi : null);
     drawTrack(
       shiftedOrig,
-      isDarkMode ? "rgba(0,220,170,0.75)" : "rgba(0,185,140,0.80)",
-      isDarkMode ? "rgba(0,220,170,0.2)" : "rgba(0,185,140,0.2)",
+      "#00c49a",
+      "#00ffce",
+      isDarkMode ? "rgba(0,196,154,0.25)" : "rgba(0,185,140,0.2)",
     );
 
-    // 사용자 피치 (흰/파랑 블록)
+    // 사용자 피치 (흰/파랑)
     drawTrack(
       userPitchHistory.current,
-      isDarkMode ? "rgba(255,255,255,0.80)" : "rgba(76,110,245,0.80)",
-      isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(76,110,245,0.15)",
+      isDarkMode ? "rgba(255,255,255,0.85)" : "#5a7df5",
+      isDarkMode ? "#fff" : "#4c6ef5",
+      isDarkMode ? "rgba(255,255,255,0.15)" : "rgba(76,110,245,0.15)",
     );
   }
 
