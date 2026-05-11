@@ -456,55 +456,109 @@ export default function PitchTestPiano({ userId, onTestComplete }) {
     const ctx = canvas.getContext("2d");
     const width = canvas.width,
       height = canvas.height;
+    const pad = { top: 26, right: 26, bottom: 24, left: 56 };
+    const plotX = pad.left;
+    const plotY = pad.top;
+    const plotW = width - pad.left - pad.right;
+    const plotH = height - pad.top - pad.bottom;
 
     ctx.clearRect(0, 0, width, height);
 
     const minMidi = 36; // C2
     const maxMidi = 96; // C7
 
-    // 밝은 배경으로 가독성 우선
+    const midiToY = (m) => plotY + ((maxMidi - m) / (maxMidi - minMidi)) * plotH;
+
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, width, height);
 
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(plotX, plotY, plotW, plotH);
+
+    ctx.strokeStyle = "#d8dee8";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(plotX, plotY, plotW, plotH);
+
     for (let m = minMidi; m <= maxMidi; m++) {
-      const y = ((maxMidi - m) / (maxMidi - minMidi)) * height;
+      const isOctave = m % 12 === 0;
+      const y = midiToY(m);
       ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
-      ctx.strokeStyle = m % 12 === 0 ? "#777" : "#ddd";
-      ctx.lineWidth = m % 12 === 0 ? 2 : 1;
+      ctx.moveTo(plotX, y);
+      ctx.lineTo(plotX + plotW, y);
+      ctx.strokeStyle = isOctave ? "#b9c2d0" : "#e8edf3";
+      ctx.lineWidth = isOctave ? 1.5 : 1;
       ctx.stroke();
-      if (m % 12 === 0) {
-        ctx.fillStyle = "black";
-        ctx.font = "12px sans-serif";
-        ctx.fillText(midiToNoteName(m), 8, y - 4);
+
+      if (isOctave) {
+        ctx.fillStyle = "#334155";
+        ctx.font = "600 13px sans-serif";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ctx.fillText(midiToNoteName(m), plotX - 10, y);
       }
     }
 
     if (currentNote) {
       const noteObj = NOTES_TO_TEST.find((x) => x.note === currentNote);
       if (noteObj) {
-        const y = ((maxMidi - noteObj.midi) / (maxMidi - minMidi)) * height;
-        ctx.strokeStyle = "red";
-        ctx.lineWidth = 2;
+        const y = midiToY(noteObj.midi);
+        ctx.strokeStyle = "#ef476f";
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([8, 8]);
         ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        ctx.moveTo(plotX, y);
+        ctx.lineTo(plotX + plotW, y);
         ctx.stroke();
+        ctx.setLineDash([]);
+
+        const label = `목표 ${currentNote}`;
+        ctx.font = "700 13px sans-serif";
+        const labelW = ctx.measureText(label).width + 18;
+        const labelH = 26;
+        const labelX = plotX + plotW - labelW - 10;
+        const labelY = Math.max(plotY + 8, Math.min(y - labelH - 8, plotY + plotH - labelH - 8));
+        ctx.fillStyle = "#fff1f4";
+        ctx.strokeStyle = "#ffc0cf";
+        ctx.lineWidth = 1;
+        roundRect(ctx, labelX, labelY, labelW, labelH, 8);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "#c9184a";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, labelX + labelW / 2, labelY + labelH / 2);
       }
     }
 
-    ctx.strokeStyle = "#0b5cff";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
     ctx.beginPath();
     pitchHistory.forEach((f, i) => {
       const m = freqToMidi(f);
-      const y = ((maxMidi - m) / (maxMidi - minMidi)) * height;
-      const x = (i / Math.max(1, pitchHistory.length - 1)) * width;
+      const y = midiToY(m);
+      const x = plotX + (i / Math.max(1, pitchHistory.length - 1)) * plotW;
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
     ctx.stroke();
+    ctx.lineCap = "butt";
+    ctx.lineJoin = "miter";
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
   }
 
   const isRunning = status === "running";
@@ -531,12 +585,32 @@ export default function PitchTestPiano({ userId, onTestComplete }) {
           </div>
 
           <div className="p-5 md:p-7">
-            <canvas
-              ref={canvasRef}
-              width={1200}
-              height={520}
-              className="w-full h-[300px] md:h-[420px] rounded-2xl border border-white/15 bg-white shadow-inner"
-            />
+            <div className="overflow-hidden rounded-2xl border border-white/15 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_16px_36px_rgba(0,0,0,0.18)]">
+              <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/95 px-4 py-3 text-slate-700 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#00b896]" />
+                  <span>{currentNote ? `현재 목표음 ${currentNote}` : "피치 그래프"}</span>
+                </div>
+
+                <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-0.5 w-5 rounded-full bg-[#2563eb]" />
+                    내 피치
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-0.5 w-5 rounded-full border-t-2 border-dashed border-[#ef476f]" />
+                    목표음
+                  </span>
+                </div>
+              </div>
+
+              <canvas
+                ref={canvasRef}
+                width={1200}
+                height={520}
+                className="block w-full h-[310px] md:h-[440px] xl:h-[490px] bg-white"
+              />
+            </div>
 
             <div className="pt-6 flex justify-center">
               <button

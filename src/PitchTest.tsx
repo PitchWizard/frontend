@@ -34,7 +34,7 @@ export default function PitchTest({ onBack, isDarkMode, user, onTestComplete }: 
         <header
           className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b ${border} ${headerBg}`}
         >
-          <div className="w-[88%] max-w-[1280px] mx-auto px-4 md:px-8 py-5 flex items-center justify-between">
+          <div className="w-[92%] max-w-[1380px] mx-auto px-4 md:px-8 py-5 flex items-center justify-between">
             <button
               onClick={onBack}
               className={`p-2.5 rounded-xl transition-colors ${
@@ -53,7 +53,7 @@ export default function PitchTest({ onBack, isDarkMode, user, onTestComplete }: 
           </div>
         </header>
 
-        <main className="pt-32 md:pt-36 pb-14 px-4 md:px-8 w-[92%] max-w-[1280px] mx-auto flex-1">
+        <main className="pt-32 md:pt-36 pb-14 px-4 md:px-8 w-[92%] max-w-[1380px] mx-auto flex-1">
           <section className="mb-7 md:mb-9">
             <div className={`inline-flex items-center gap-2 rounded-full border ${border} ${glassCard} px-4 py-2`}>
               <Sparkles className={`w-4 h-4 ${subTextColor}`} />
