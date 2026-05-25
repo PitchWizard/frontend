@@ -240,22 +240,12 @@ export default function SignupPage({ onBack, onGoLogin, isDarkMode }: Props) {
                 <div className={`h-px flex-1 ${isDarkMode ? "bg-white/10" : "bg-black/10"}`} />
               </div>
 
-              <div className="grid gap-3">
-                <button
-                  type="button"
-                  className={`w-full rounded-2xl border ${border} ${mutedCardBg} py-4 text-[15px] font-medium ${textColor} transition-colors ${
-                    isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
-                  }`}
-                >
-                  Google로 계속하기
+              <div className="grid gap-3 opacity-40 cursor-not-allowed">
+                <button type="button" disabled className={`w-full rounded-2xl border ${border} ${mutedCardBg} py-4 text-[15px] font-medium ${textColor}`}>
+                  Google로 계속하기 (준비 중)
                 </button>
-                <button
-                  type="button"
-                  className={`w-full rounded-2xl border ${border} ${mutedCardBg} py-4 text-[15px] font-medium ${textColor} transition-colors ${
-                    isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
-                  }`}
-                >
-                  카카오로 계속하기
+                <button type="button" disabled className={`w-full rounded-2xl border ${border} ${mutedCardBg} py-4 text-[15px] font-medium ${textColor}`}>
+                  카카오로 계속하기 (준비 중)
                 </button>
               </div>
 

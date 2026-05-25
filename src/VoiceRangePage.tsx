@@ -1,18 +1,19 @@
+import { useEffect, useState } from "react";
 import { ArrowLeft, BarChart3, Mic2, UserRound } from "lucide-react";
+import axios from "axios";
 
-const similarSingers = [
-  { name: "아이유", range: "F3 ~ G5", overlap: "중저음~고음을 넘나드는 폭넓은 음역" },
-  { name: "태연", range: "A3 ~ B5", overlap: "맑고 높은 소프라노 계열" },
-  { name: "볼빨간사춘기", range: "G3 ~ A5", overlap: "감성적인 중고음 음역" },
-  { name: "임창정", range: "D3 ~ E5", overlap: "따뜻한 중저음 음색" },
-  { name: "나얼", range: "E3 ~ F5", overlap: "풍부한 바리톤 ~ 테너 음역" },
-  { name: "박효신", range: "D3 ~ D5", overlap: "깊고 진한 저음 ~ 중음 음역" },
-];
+const BASE_URL = "http://127.0.0.1:8000";
+
+function midiToNote(midi: number): string {
+  const names = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  return names[midi % 12] + (Math.floor(midi / 12) - 1);
+}
 
 type Props = {
   onBack: () => void;
   isDarkMode: boolean;
   user: any;
+  onSelectSinger?: (name: string) => void;
 };
 
 const whiteKeys = [
@@ -25,12 +26,43 @@ function getNoteWhiteIndex(note: string): number {
   return whiteKeys.indexOf(note);
 }
 
-export default function VoiceRangePage({ onBack, isDarkMode, user }: Props) {
+type SimilarSinger = { name: string; range: string; overlap: string };
+
+export default function VoiceRangePage({ onBack, isDarkMode, user, onSelectSinger }: Props) {
   const lowNote: string | null = user?.low_note ?? null;
   const highNote: string | null = user?.high_note ?? null;
   const rangeStartWhiteIndex = lowNote ? getNoteWhiteIndex(lowNote) : -1;
   const rangeEndWhiteIndex = highNote ? getNoteWhiteIndex(highNote) : -1;
   const hasMeasured = lowNote && highNote;
+
+  const [similarSingers, setSimilarSingers] = useState<SimilarSinger[]>([]);
+
+  useEffect(() => {
+    if (!user?.midi_median) return;
+    axios.get(`${BASE_URL}/songs`).then((res) => {
+      // 아티스트별 midi_median 평균
+      const artistMap = new Map<string, number[]>();
+      for (const s of res.data) {
+        if (!s.artist || !s.midi_median) continue;
+        if (!artistMap.has(s.artist)) artistMap.set(s.artist, []);
+        artistMap.get(s.artist)!.push(s.midi_median);
+      }
+      const artists = Array.from(artistMap.entries()).map(([name, medians]) => {
+        const avg = medians.reduce((a, b) => a + b, 0) / medians.length;
+        return { name, avg };
+      });
+      // 유저 midi_median과 차이가 작은 순 정렬, 상위 6명
+      const sorted = artists
+        .sort((a, b) => Math.abs(a.avg - user.midi_median) - Math.abs(b.avg - user.midi_median))
+        .slice(0, 6);
+      setSimilarSingers(sorted.map((a) => ({
+        name: a.name,
+        range: `중앙음 ${midiToNote(Math.round(a.avg))}`,
+        overlap: `음역 중심이 ${Math.abs(Math.round(a.avg - user.midi_median))} 반음 차이`,
+      })));
+    }).catch(() => {});
+  }, [user?.midi_median]);
+
   const bgColor = isDarkMode ? "bg-[#1f1f1f]/60" : "bg-[#f8f7f9]/60";
   const textColor = isDarkMode ? "text-white" : "text-[#1f1f1f]";
   const subTextColor = isDarkMode ? "text-white/70" : "text-[#1f1f1f]/70";
@@ -175,9 +207,11 @@ export default function VoiceRangePage({ onBack, isDarkMode, user }: Props) {
 
                 <div className="mt-5 px-1 md:px-2 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {similarSingers.map((singer) => (
-                    <div
+                    <button
                       key={singer.name}
-                      className={`rounded-2xl border ${border} ${mutedCardBg} px-5 py-4 md:px-6 md:py-5 flex items-start gap-3 shadow-lg shadow-black/10`}
+                      type="button"
+                      onClick={() => onSelectSinger?.(singer.name)}
+                      className={`text-left rounded-2xl border ${border} ${mutedCardBg} px-5 py-4 md:px-6 md:py-5 flex items-start gap-3 shadow-lg shadow-black/10 transition-colors ${isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"}`}
                     >
                       <div className="mt-0.5 h-9 w-1 rounded-full bg-gradient-to-b from-[#00efc4] to-[#00b894]" />
                       <div className="min-w-0">
@@ -185,7 +219,7 @@ export default function VoiceRangePage({ onBack, isDarkMode, user }: Props) {
                         <p className="text-[#00efc4] text-[14px] mt-1">{singer.range}</p>
                         <p className={`mt-2 text-[14px] leading-6 ${subTextColor}`}>{singer.overlap}</p>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </section>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertCircle, ArrowLeft, Loader2, Music2, Search } from "lucide-react";
 import { getSongCatalog } from "./api/songApi";
 
@@ -6,6 +6,7 @@ type Props = {
   onBack: () => void;
   isDarkMode: boolean;
   onSelectSong?: (song: SongItem) => void;
+  onSelectSinger?: (name: string) => void;
 };
 
 type SongItem = {
@@ -51,15 +52,28 @@ function formatRangeLabel(song: SongItem) {
   return song.key ? `키 ${song.key}` : "";
 }
 
-export default function SearchPage({ onBack, isDarkMode, onSelectSong }: Props) {
+export default function SearchPage({ onBack, isDarkMode, onSelectSong, onSelectSinger }: Props) {
   const [query, setQuery] = useState("");
   const [catalog, setCatalog] = useState<SongItem[]>([]);
-  const [catalogLoaded, setCatalogLoaded] = useState(false);
-  const [songs, setSongs] = useState<SongItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [hasSearched, setHasSearched] = useState(false);
+
+  // 마운트 시 전체 곡 목록 로드
+  useEffect(() => {
+    setLoading(true);
+    getSongCatalog()
+      .then((list) => {
+        setCatalog(list);
+        setError("");
+        setNotice("");
+      })
+      .catch(() => {
+        setCatalog(MOCK_SONGS);
+        setNotice("백엔드 연결이 없어 샘플 데이터로 표시 중입니다.");
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   const bgColor = isDarkMode ? "bg-[#1f1f1f]/60" : "bg-[#f8f7f9]/60";
   const textColor = isDarkMode ? "text-white" : "text-[#1f1f1f]";
@@ -70,52 +84,10 @@ export default function SearchPage({ onBack, isDarkMode, onSelectSong }: Props) 
   const placeholderColor = isDarkMode ? "placeholder:text-white/40" : "placeholder:text-black/40";
   const cardBg = isDarkMode ? "bg-white/5" : "bg-[#1f1f1f]/5";
 
-  function filterByKeyword(list: SongItem[], keyword: string) {
-    const q = keyword.toLowerCase();
-    return list.filter((song) => {
-      const title = song.title.toLowerCase();
-      const artist = song.artist.toLowerCase();
-      return title.includes(q) || artist.includes(q);
-    });
-  }
-
-  async function handleSearch(event: React.FormEvent) {
-    event.preventDefault();
-    const keyword = query.trim();
-    if (!keyword) {
-      setError("검색어를 입력해 주세요.");
-      setNotice("");
-      setHasSearched(false);
-      setSongs([]);
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    setNotice("");
-    setHasSearched(true);
-    try {
-      let source = catalog;
-      if (!catalogLoaded) {
-        source = await getSongCatalog();
-        setCatalog(source);
-        setCatalogLoaded(true);
-      }
-      setSongs(filterByKeyword(source, keyword));
-    } catch (err: any) {
-      const fallback = filterByKeyword(MOCK_SONGS, keyword);
-      if (fallback.length > 0) {
-        setSongs(fallback);
-        setNotice("백엔드 연결이 없어 샘플 데이터로 표시 중입니다.");
-        setError("");
-      } else {
-        setSongs([]);
-        setError(err?.response?.data?.detail || "곡 목록 조회에 실패했습니다.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
+  const filtered = catalog.filter((song) => {
+    const q = query.toLowerCase();
+    return !q || song.title.toLowerCase().includes(q) || song.artist.toLowerCase().includes(q);
+  });
 
   return (
     <div
@@ -165,9 +137,8 @@ export default function SearchPage({ onBack, isDarkMode, onSelectSong }: Props) 
             </div>
 
             <div className="mt-12 flex justify-center">
-              <form
-                onSubmit={handleSearch}
-                className={`group w-full max-w-[1160px] rounded-[24px] border ${border} px-2 backdrop-blur-xl transition-all duration-300 ${
+              <div
+                className={`w-full max-w-[1160px] rounded-[24px] border ${border} px-2 backdrop-blur-xl ${
                   isDarkMode
                     ? "bg-white/8 shadow-[0_14px_38px_rgba(0,0,0,0.35)]"
                     : "bg-white/88 shadow-[0_14px_38px_rgba(0,0,0,0.10)]"
@@ -175,34 +146,31 @@ export default function SearchPage({ onBack, isDarkMode, onSelectSong }: Props) 
               >
                 <div className="flex items-center gap-4 px-5 py-3.5">
                   <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition-colors ${
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
                       isDarkMode ? "bg-white/10" : "bg-black/5"
                     }`}
                   >
                     <Search className={`w-5 h-5 ${subTextColor}`} />
                   </div>
-
                   <input
                     type="text"
                     value={query}
-                    onChange={(event) => setQuery(event.target.value)}
+                    onChange={(e) => setQuery(e.target.value)}
                     placeholder="노래 제목이나 가수를 검색해보세요"
                     className={`w-full bg-transparent outline-none border-none text-[16px] md:text-[17px] ${textColor} ${placeholderColor}`}
                   />
                 </div>
-              </form>
+              </div>
             </div>
 
-            {hasSearched && error ? (
-              <div
-                className={`mx-auto mt-6 flex w-full max-w-[1160px] items-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200`}
-              >
+            {error ? (
+              <div className="mx-auto mt-6 flex w-full max-w-[1160px] items-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                 <AlertCircle className="h-4 w-4" />
                 <span>{error}</span>
               </div>
             ) : null}
 
-            {hasSearched && notice ? (
+            {notice ? (
               <div
                 className={`mx-auto mt-4 flex w-full max-w-[1160px] items-center gap-2 rounded-xl border px-4 py-3 text-sm ${
                   isDarkMode
@@ -216,29 +184,19 @@ export default function SearchPage({ onBack, isDarkMode, onSelectSong }: Props) 
             ) : null}
 
             <section className="mx-auto mt-8 w-full max-w-[1160px]">
-              {hasSearched && loading ? (
+              {loading ? (
                 <div className={`rounded-2xl border ${border} ${cardBg} px-5 py-12 text-center`}>
                   <Loader2 className={`mx-auto h-6 w-6 animate-spin ${subTextColor}`} />
                   <p className={`mt-3 text-sm ${subTextColor}`}>곡 목록을 불러오는 중입니다...</p>
                 </div>
-              ) : null}
-
-              {!hasSearched && !loading ? (
-                <div className={`rounded-2xl border ${border} ${cardBg} px-5 py-12 text-center`}>
-                  <p className={`text-sm ${subTextColor}`}>노래 제목 또는 가수를 입력하고 검색해 주세요.</p>
-                </div>
-              ) : null}
-
-              {hasSearched && !loading && songs.length === 0 && !error ? (
+              ) : filtered.length === 0 ? (
                 <div className={`rounded-2xl border ${border} ${cardBg} px-5 py-12 text-center`}>
                   <p className={`text-sm ${subTextColor}`}>검색 결과가 없습니다.</p>
                 </div>
-              ) : null}
-
-              {hasSearched && !loading && songs.length > 0 ? (
+              ) : (
                 <div className="space-y-3">
-                  <p className={`text-sm ${subTextColor}`}>총 {songs.length}곡</p>
-                  {songs.map((song) => (
+                  <p className={`text-sm ${subTextColor}`}>총 {filtered.length}곡</p>
+                  {filtered.map((song) => (
                     <button
                       type="button"
                       onClick={() => onSelectSong?.(song)}
@@ -260,7 +218,13 @@ export default function SearchPage({ onBack, isDarkMode, onSelectSong }: Props) 
                             <p className={`truncate text-[18px] font-semibold ${textColor}`}>
                               {song.title}
                             </p>
-                            <p className={`truncate text-sm ${subTextColor}`}>{song.artist}</p>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); onSelectSinger?.(song.artist); }}
+                              className={`truncate text-sm ${subTextColor} hover:text-[#00efc4] transition-colors`}
+                            >
+                              {song.artist}
+                            </button>
                           </div>
                         </div>
 
@@ -296,7 +260,7 @@ export default function SearchPage({ onBack, isDarkMode, onSelectSong }: Props) 
                     </button>
                   ))}
                 </div>
-              ) : null}
+              )}
             </section>
           </div>
         </main>

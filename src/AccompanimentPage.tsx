@@ -39,14 +39,7 @@ function midiToNoteName(midi: number): string {
   return names[midi % 12] + oct;
 }
 
-export default function AccompanimentPage({
-  onBack,
-  isDarkMode,
-  user,
-  initialSongId,
-  initialSongTitle,
-  initialSongArtist,
-}: Props) {
+export default function AccompanimentPage({ onBack, isDarkMode, user, initialSongId, initialSongTitle, initialSongArtist }: Props) {
   const [songs, setSongs] = useState<Song[]>([]);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -65,20 +58,18 @@ export default function AccompanimentPage({
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
-  const mainRafRef = useRef<number | null>(null);
+  const canvasRafRef = useRef<number | null>(null);
+  const sampleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const detectorRef = useRef<ReturnType<typeof PitchDetector.forFloat32Array> | null>(null);
+  const micBufRef = useRef<Float32Array | null>(null);
 
   // 피치 히스토리 (Canvas용)
   const userPitchHistory = useRef<(number | null)[]>([]);
   const origPitchHistory = useRef<(number | null)[]>([]);
-  const MAX_HISTORY = 300;
-
-  // stale closure 방지용 refs
-  const isPlayingRef = useRef(false);
+  const MAX_HISTORY = 30;
   const pitchFramesRef = useRef<PitchFrames | null>(null);
-  const isMicOnRef = useRef(false);
-  const detectorRef = useRef<ReturnType<typeof PitchDetector.forFloat32Array> | null>(null);
-  const micBufRef = useRef<Float32Array | null>(null);
+  const selectedSongRef = useRef<Song | null>(null);
 
   const border = isDarkMode ? "border-white/10" : "border-[#1f1f1f]/10";
   const textColor = isDarkMode ? "text-white" : "text-[#1f1f1f]";
@@ -91,11 +82,10 @@ export default function AccompanimentPage({
     axios.get(`${BASE_URL}/songs`).then((r) => setSongs(r.data));
   }, []);
 
-  // 상세 페이지에서 진입한 경우 해당 곡을 자동 선택
+  // 검색 페이지에서 곡을 선택해 넘어온 경우 자동 선택
   useEffect(() => {
     if (!songs.length || selectedSong) return;
     if (!initialSongId && !initialSongTitle) return;
-
     const normalizedId = Number(initialSongId);
     const matched =
       songs.find((item) => Number.isFinite(normalizedId) && item.song_id === normalizedId) ||
@@ -105,7 +95,6 @@ export default function AccompanimentPage({
           item.title === initialSongTitle &&
           (!initialSongArtist || item.artist === initialSongArtist),
       );
-
     if (matched) {
       setSelectedSong(matched);
       setSearchQuery("");
@@ -136,57 +125,20 @@ export default function AccompanimentPage({
   // semitones ref 동기화
   useEffect(() => { semitonesRef.current = semitones; }, [semitones]);
 
-  // state → ref 동기화 (RAF 루프 stale closure 방지)
-  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  // pitchFrames ref 동기화 (sampleInterval 클로저에서 사용)
   useEffect(() => { pitchFramesRef.current = pitchFrames; }, [pitchFrames]);
-  useEffect(() => { isMicOnRef.current = isMicOn; }, [isMicOn]);
 
-  // 통합 RAF 루프: origPitch + userPitch + canvas를 같은 프레임에서 처리
+  // selectedSong ref 동기화 (drawCanvas 클로저에서 사용)
+  useEffect(() => { selectedSongRef.current = selectedSong; }, [selectedSong]);
+
+  // Canvas RAF: 그리기만 담당 (항상 60fps)
   useEffect(() => {
     function loop() {
-      // 1) 원곡 피치 (재생 중일 때만)
-      const pf = pitchFramesRef.current;
-      if (isPlayingRef.current && pf) {
-        const t = audioRef.current?.currentTime ?? 0;
-        const idx = Math.round((t * 1000) / pf.hop_ms);
-        const hz = idx < pf.hz.length ? pf.hz[idx] : null;
-        const midi = hz ? hzToMidi(hz) : null;
-        setOriginalPitch(midi);
-        origPitchHistory.current.push(midi);
-        if (origPitchHistory.current.length > MAX_HISTORY)
-          origPitchHistory.current.shift();
-      }
-
-      // 2) 마이크 피치 (마이크 켜져 있을 때만)
-      if (isMicOnRef.current && analyserRef.current && audioCtxRef.current && detectorRef.current && micBufRef.current) {
-        const buf = micBufRef.current as Float32Array<ArrayBuffer>;
-        analyserRef.current.getFloatTimeDomainData(buf);
-        const [freq, clarity] = detectorRef.current.findPitch(buf, audioCtxRef.current.sampleRate);
-        const raw = clarity > 0.8 && freq > 60 ? hzToMidi(freq) : null;
-
-        const history = userPitchHistory.current;
-        let midi = raw;
-        if (midi === null && history.length > 0) {
-          const recent = history.slice(-3);
-          const lastValid = [...recent].reverse().find((v) => v !== null);
-          if (lastValid !== undefined) midi = lastValid;
-        }
-        setUserPitch(midi);
-        userPitchHistory.current.push(midi);
-        if (userPitchHistory.current.length > MAX_HISTORY)
-          userPitchHistory.current.shift();
-      }
-
-      // 3) Canvas 렌더
       drawCanvas();
-
-      mainRafRef.current = requestAnimationFrame(loop);
+      canvasRafRef.current = requestAnimationFrame(loop);
     }
-
-    mainRafRef.current = requestAnimationFrame(loop);
-    return () => {
-      if (mainRafRef.current) cancelAnimationFrame(mainRafRef.current);
-    };
+    canvasRafRef.current = requestAnimationFrame(loop);
+    return () => { if (canvasRafRef.current) cancelAnimationFrame(canvasRafRef.current); };
   }, [isDarkMode]);
 
   async function startMic() {
@@ -254,125 +206,194 @@ export default function AccompanimentPage({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const W = canvas.width, H = canvas.height;
-    ctx.clearRect(0, 0, W, H);
 
-    // 배경
-    ctx.fillStyle = isDarkMode ? "#111" : "#f5f5f5";
-    ctx.fillRect(0, 0, W, H);
+    // 레이아웃
+    const LABEL_W = 44; // 왼쪽 노트 레이블 영역
+    const PLOT_W = W - LABEL_W;
 
-    // 보컬 음역대 기준으로 범위 좁힘 (C3~C6)
-    const MIDI_MIN = 48, MIDI_MAX = 72;
+    // 선택된 곡의 음역대 기준으로 동적 범위 계산 (없으면 C3~C5 기본값)
+    const song = selectedSongRef.current;
+    const semi = semitonesRef.current;
+    const PAD = 5; // 위아래 패딩 (반음)
+    const rawMin = song ? song.midi_min + semi : 48;
+    const rawMax = song ? song.midi_max + semi : 72;
+    // C 경계로 맞춤 (더 깔끔한 그리드)
+    const MIDI_MIN = Math.max(24, Math.floor((rawMin - PAD) / 12) * 12);
+    const MIDI_MAX = Math.min(96, Math.ceil((rawMax + PAD) / 12) * 12);
+    const MIDI_CENTER = 60; // C4 고정
+
     function midiToY(m: number) {
       return H - ((m - MIDI_MIN) / (MIDI_MAX - MIDI_MIN)) * H;
     }
 
-    // 반음 단위 가이드라인
+    // 배경
+    ctx.fillStyle = isDarkMode ? "#0d0d0d" : "#f0f0f0";
+    ctx.fillRect(0, 0, W, H);
+
+    // 레이블 영역 배경
+    ctx.fillStyle = isDarkMode ? "#161616" : "#e8e8e8";
+    ctx.fillRect(0, 0, LABEL_W, H);
+
+    // 구분선
+    ctx.strokeStyle = isDarkMode ? "#2a2a2a" : "#ccc";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(LABEL_W, 0);
+    ctx.lineTo(LABEL_W, H);
+    ctx.stroke();
+
+    // 그리드 & 레이블
     for (let m = MIDI_MIN; m <= MIDI_MAX; m++) {
-      const isOctave = m % 12 === 0;
       const isC = m % 12 === 0;
+      const isBlack = [1, 3, 6, 8, 10].includes(m % 12);
       const y = midiToY(m);
-      ctx.strokeStyle = isOctave
-        ? (isDarkMode ? "#444" : "#bbb")
-        : (isDarkMode ? "#222" : "#e5e5e5");
-      ctx.lineWidth = isOctave ? 1.5 : 0.5;
+
+      // 플롯 영역 수평선
+      if (isC) {
+        ctx.strokeStyle = isDarkMode ? "#333" : "#c0c0c0";
+        ctx.lineWidth = 1.2;
+      } else if (!isBlack) {
+        ctx.strokeStyle = isDarkMode ? "#1a1a1a" : "#e0e0e0";
+        ctx.lineWidth = 0.5;
+      } else {
+        continue; // 검은 건반 위치는 선 생략
+      }
       ctx.beginPath();
-      ctx.moveTo(0, y);
+      ctx.moveTo(LABEL_W, y);
       ctx.lineTo(W, y);
       ctx.stroke();
+
+      // C4 강조선
+      if (m === MIDI_CENTER) {
+        ctx.strokeStyle = isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(LABEL_W, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      }
+
+      // 노트 레이블 (C만)
       if (isC) {
-        ctx.fillStyle = isDarkMode ? "#777" : "#888";
-        ctx.font = "bold 12px monospace";
-        ctx.fillText(midiToNoteName(m), 6, y - 4);
+        ctx.fillStyle = m === MIDI_CENTER
+          ? "#00d9b1"
+          : (isDarkMode ? "#555" : "#999");
+        ctx.font = `${m === MIDI_CENTER ? "bold" : ""} 11px monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText(midiToNoteName(m), LABEL_W / 2, y + 4);
       }
     }
 
-    const step = W / MAX_HISTORY;
-
-    const MIDI_CENTER = (MIDI_MIN + MIDI_MAX) / 2;
+    const step = PLOT_W / MAX_HISTORY;
 
     function drawTrack(
-      c: CanvasRenderingContext2D,
       history: (number | null)[],
-      color: string,
+      lineColor: string,
       dotColor: string,
       lineWidth: number,
-      fillNull?: number,
+      fillNull: number, // null일 때 대체 MIDI (C4)
+      isReal: boolean,  // 실제 피치 있을 때만 점
     ) {
-      const ctx = c;
       const N = history.length;
-      // 오른쪽 끝 = 현재 시점, 왼쪽으로 갈수록 과거
-      function xOf(i: number) {
-        return W - (N - 1 - i) * step;
-      }
+      function xOf(i: number) { return LABEL_W + PLOT_W - (N - 1 - i) * step; }
 
-      // 선
-      ctx.strokeStyle = color;
+      ctx.strokeStyle = lineColor;
       ctx.lineWidth = lineWidth;
       ctx.beginPath();
       let started = false;
       history.forEach((m, i) => {
-        const val = (m === null || m < MIDI_MIN || m > MIDI_MAX) ? (fillNull ?? null) : m;
-        if (val === null) { started = false; return; }
+        const val = (m === null || m < MIDI_MIN || m > MIDI_MAX) ? fillNull : m;
         const x = xOf(i), y = midiToY(val);
         if (!started) { ctx.moveTo(x, y); started = true; }
         else ctx.lineTo(x, y);
       });
       ctx.stroke();
 
-      // 점 (실제 피치값 있을 때만)
-      ctx.fillStyle = dotColor;
-      history.forEach((m, i) => {
-        if (m === null || m < MIDI_MIN || m > MIDI_MAX) return;
-        const x = xOf(i), y = midiToY(m);
-        ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fill();
-      });
+      // 실제 피치 구간만 캡슐로 강조
+      if (isReal) {
+        const capW = step * 10;   // 가로: 샘플 간격의 3배
+        const capH = 7;          // 세로: 고정 높이
+        const r = capH / 2;
+        ctx.fillStyle = dotColor;
+        history.forEach((m, i) => {
+          if (m === null || m < MIDI_MIN || m > MIDI_MAX) return;
+          const cx = xOf(i), cy = midiToY(m);
+          ctx.beginPath();
+          ctx.roundRect(cx - capW / 2, cy - r, capW, capH, r);
+          ctx.fill();
+        });
+      }
     }
 
-    // 원곡 피치 (초록) — semitones 반영 + null 구간은 중앙선
-    const semi = semitonesRef.current;
+    // 원곡 피치 (초록) — null 구간은 C4 가이드선
     const shiftedOrig = origPitchHistory.current.map((m) => m !== null ? m + semi : null);
-    drawTrack(ctx, shiftedOrig, "#00d9b1", "#00ffce", 2.5, MIDI_CENTER);
-    // 사용자 피치 (흰/파랑)
-    drawTrack(
-      ctx,
-      userPitchHistory.current,
-      isDarkMode ? "rgba(255,255,255,0.9)" : "#4c6ef5",
-      isDarkMode ? "#fff" : "#4c6ef5",
-      3,
-    );
+    drawTrack(shiftedOrig, "#00c49a", "#00ffce", 2, MIDI_CENTER, true);
 
-    // 현재 위치 (항상 오른쪽 끝)
-    const hasData = origPitchHistory.current.length > 0 || userPitchHistory.current.length > 0;
-    if (hasData) {
-      ctx.strokeStyle = isDarkMode ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(W, 0);
-      ctx.lineTo(W, H);
-      ctx.stroke();
-      ctx.setLineDash([]);
+    // 사용자 피치 — null 구간은 C4 가이드선
+    drawTrack(
+      userPitchHistory.current,
+      isDarkMode ? "rgba(255,255,255,0.75)" : "#5a7df5",
+      isDarkMode ? "#fff" : "#4c6ef5",
+      2,
+      MIDI_CENTER,
+      true,
+    );
+  }
+
+  function stopSampling() {
+    if (sampleIntervalRef.current) {
+      clearInterval(sampleIntervalRef.current);
+      sampleIntervalRef.current = null;
     }
   }
 
   async function playWithSemitones(song: Song, semi: number) {
-    const url = `${BASE_URL}/songs/${song.song_id}/accompaniment?semitones=${semi}`;
+    stopSampling();
     if (!audioRef.current) audioRef.current = new Audio();
     else audioRef.current.pause();
-    audioRef.current.src = url;
-    audioRef.current.onended = () => setIsPlaying(false);
+
+    audioRef.current.src = `${BASE_URL}/songs/${song.song_id}/accompaniment?semitones=${semi}`;
+    audioRef.current.onended = () => { stopSampling(); setIsPlaying(false); };
+
     await audioRef.current.play();
-    setIsPlaying(true);
+
+    // 재생 시작 순간 히스토리 초기화 후 interval 시작 → 둘 다 동시에 0초부터
     userPitchHistory.current = [];
     origPitchHistory.current = [];
+    setIsPlaying(true);
+
+    sampleIntervalRef.current = setInterval(() => {
+      const pf = pitchFramesRef.current;
+      const audio = audioRef.current;
+
+      // 원곡 피치
+      if (pf && audio) {
+        const idx = Math.round((audio.currentTime * 1000) / pf.hop_ms);
+        const hz = idx < pf.hz.length ? pf.hz[idx] : null;
+        const midi = hz ? hzToMidi(hz) : null;
+        setOriginalPitch(midi);
+        origPitchHistory.current.push(midi);
+        if (origPitchHistory.current.length > MAX_HISTORY) origPitchHistory.current.shift();
+      }
+
+      // 마이크 피치
+      if (analyserRef.current && audioCtxRef.current && detectorRef.current && micBufRef.current) {
+        const buf = micBufRef.current as Float32Array<ArrayBuffer>;
+        analyserRef.current.getFloatTimeDomainData(buf);
+        const [freq, clarity] = detectorRef.current.findPitch(buf, audioCtxRef.current.sampleRate);
+        const midi = clarity > 0.8 && freq > 60 ? hzToMidi(freq) : null;
+        setUserPitch(midi);
+        userPitchHistory.current.push(midi);
+        if (userPitchHistory.current.length > MAX_HISTORY) userPitchHistory.current.shift();
+      }
+    }, 100);
   }
 
   async function togglePlay() {
     if (!selectedSong) return;
     if (isPlaying) {
       audioRef.current?.pause();
+      stopSampling();
       setIsPlaying(false);
       return;
     }
