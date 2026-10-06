@@ -40,6 +40,10 @@ export default function VoiceRangePage({ onBack, isDarkMode, user, onSelectSinge
   const rangeStartWhiteIndex = lowNote ? getNoteWhiteIndex(lowNote) : -1;
   const rangeEndWhiteIndex = highNote ? getNoteWhiteIndex(highNote) : -1;
   const hasMeasured = lowNote && highNote;
+  // 진성 최고음이 저장돼 있으면 그 위(최고음까지)는 가성 구간으로 표시
+  const chestNote: string | null = user?.chest_high_note ?? null;
+  const chestEndIndex = chestNote ? getNoteWhiteIndex(chestNote) : -1;
+  const hasChest = hasMeasured && chestEndIndex >= rangeStartWhiteIndex && chestEndIndex < rangeEndWhiteIndex;
 
   const [similarSingers, setSimilarSingers] = useState<SimilarSinger[]>([]);
 
@@ -166,15 +170,28 @@ export default function VoiceRangePage({ onBack, isDarkMode, user, onSelectSinge
                     <div className="absolute inset-0 flex">
                       {whiteKeys.map((note, index) => {
                         const inRange = index >= rangeStartWhiteIndex && index <= rangeEndWhiteIndex;
+                        const isFalsetto = hasChest && index > chestEndIndex;
+                        const blackInRange = inRange && index + 1 >= rangeStartWhiteIndex && index + 1 <= rangeEndWhiteIndex;
+                        const blackIsFalsetto = hasChest && index >= chestEndIndex;
                         const noteHead = note[0];
                         const hasBlackRight = noteHead !== "E" && noteHead !== "B";
+                        const whiteClass = !inRange
+                          ? "bg-gradient-to-b from-white to-[#ececec] border-black/15"
+                          : isFalsetto
+                            ? "bg-gradient-to-b from-[#e6dcff] to-[#c8b6ff] border-black/20"
+                            : "bg-gradient-to-b from-[#b8ffef] to-[#83f5d8] border-black/20";
+                        const blackClass = !blackInRange
+                          ? "bg-gradient-to-b from-[#262626] to-black"
+                          : blackIsFalsetto
+                            ? "bg-gradient-to-b from-[#a98bff] to-[#7b5cf0]"
+                            : "bg-gradient-to-b from-[#00f3c8] to-[#00b894]";
                         return (
                           <div
                             key={note}
-                            className={`relative flex-1 border-r last:border-r-0 ${inRange ? "bg-gradient-to-b from-[#b8ffef] to-[#83f5d8] border-black/20" : "bg-gradient-to-b from-white to-[#ececec] border-black/15"}`}
+                            className={`relative flex-1 border-r last:border-r-0 ${whiteClass}`}
                           >
                             {hasBlackRight && index < whiteKeys.length - 1 && (
-                              <span className={`absolute right-0 top-0 translate-x-1/2 z-10 h-[66px] w-[54%] rounded-b-md border border-black/50 shadow-[0_7px_10px_rgba(0,0,0,0.35)] ${inRange && index + 1 >= rangeStartWhiteIndex && index + 1 <= rangeEndWhiteIndex ? "bg-gradient-to-b from-[#00f3c8] to-[#00b894]" : "bg-gradient-to-b from-[#262626] to-black"}`} />
+                              <span className={`absolute right-0 top-0 translate-x-1/2 z-10 h-[66px] w-[54%] rounded-b-md border border-black/50 shadow-[0_7px_10px_rgba(0,0,0,0.35)] ${blackClass}`} />
                             )}
                           </div>
                         );
@@ -186,6 +203,12 @@ export default function VoiceRangePage({ onBack, isDarkMode, user, onSelectSinge
                     <span className="text-[#00d9b1] font-semibold">{hasMeasured ? `${lowNote} ~ ${highNote}` : "미측정"}</span>
                     <span>C6</span>
                   </div>
+                  {hasChest && (
+                    <div className="mt-3 flex flex-wrap justify-center gap-2">
+                      <span className="rounded-full border border-[#00d9b1]/30 px-2.5 py-0.5 text-[11px] text-[#00d9b1]">진성 {lowNote} ~ {chestNote}</span>
+                      <span className="rounded-full border border-[#a98bff]/40 px-2.5 py-0.5 text-[11px] text-[#b9a2ff]">가성 ~ {highNote}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -198,6 +221,9 @@ export default function VoiceRangePage({ onBack, isDarkMode, user, onSelectSinge
                   <p className={`text-[15px] leading-7 ${sub}`}>
                     최저음 <span className="text-[#00d9b1] font-semibold">{lowNote}</span>부터
                     최고음 <span className="text-[#00d9b1] font-semibold">{highNote}</span>까지 측정되었습니다.
+                    {hasChest
+                      ? <> 진성은 <span className="text-[#00d9b1] font-semibold">{chestNote}</span>까지이며, 곡 추천은 진성 음역을 기준으로 합니다.</>
+                      : " 가성 구분을 하지 않아 가성을 포함한 최고음으로 곡을 추천합니다."}
                   </p>
                 ) : (
                   <p className={`text-[15px] leading-7 ${sub}`}>

@@ -187,6 +187,7 @@ export default function PitchTestPiano({ userId, onTestComplete }) {
   const [tessitura, setTessitura] = useState(null);
   const [retriedNotes, setRetriedNotes] = useState([]);
   const [retryingNote, setRetryingNote] = useState(null);
+  const [falsettoStart, setFalsettoStart] = useState(null); // null: 미선택, "none": 가성 안 씀, 음 이름: 가성 시작 음
 
   useEffect(() => () => stopAll(), []);
   useEffect(() => drawCanvas(), [pitchHistory, currentNote]);
@@ -307,6 +308,7 @@ export default function PitchTestPiano({ userId, onTestComplete }) {
     setResults([]);
     setStatus("running");
     setRetriedNotes([]);
+    setFalsettoStart(null);
     setRetryingNote(null);
     await initAudio();
     startRecording();
@@ -340,41 +342,65 @@ export default function PitchTestPiano({ userId, onTestComplete }) {
     console.log("🎼 Tessitura 분석 결과:", tessitura);
     console.log("📊 모든 구간:", segments);
 
-    let midi_min = null, midi_max = null, midi_median = null;
-    if (tessitura) {
-      const midiValues = tessitura.notes.map(
-        (n) => NOTES_TO_TEST.find((x) => x.note === n).midi
-      );
-      midiValues.sort((a, b) => a - b);
-      midi_min = midiValues[0];
-      midi_max = midiValues[midiValues.length - 1];
-      midi_median =
-        midiValues.length % 2 === 1
-          ? midiValues[Math.floor(midiValues.length / 2)]
-          : (midiValues[midiValues.length / 2 - 1] +
-              midiValues[midiValues.length / 2]) /
-            2;
-    }
-
-    if (tessitura && userId) {
-      const payload = {
-        user_id: userId,
-        midi_min,
-        midi_median,
-        midi_max,
-        low_note: tessitura.low,
-        high_note: tessitura.high,
-        avg_rms: null,
-      };
-      try {
-        await saveVocalRange(payload);
-        onTestComplete?.({ midi_min, midi_median, midi_max, low_note: tessitura.low, high_note: tessitura.high });
-      } catch (e) {
-        console.error("음역대 저장 실패:", e);
-      }
-    }
+    await saveTessitura(tessitura, null);
 
     setStatus("done");
+  }
+
+  // 진성 최고음: 가성으로 바꾼 첫 음 바로 아래의 측정 음. "none" 이면 가성 없이 테시투라 최고음
+  function chestOf(tessitura, falsetto) {
+    if (!tessitura || !falsetto) return { chest_max: null, chest_high_note: null };
+    const tested = tessitura.notes
+      .map((n) => NOTES_TO_TEST.find((x) => x.note === n))
+      .sort((a, b) => a.midi - b.midi);
+    const limit = falsetto === "none" ? Infinity : NOTES_TO_TEST.find((x) => x.note === falsetto).midi;
+    const chest = tested.filter((x) => x.midi < limit);
+    if (chest.length === 0) return { chest_max: null, chest_high_note: null };
+    const top = chest[chest.length - 1];
+    return { chest_max: top.midi, chest_high_note: top.note };
+  }
+
+  async function selectFalsettoStart(value) {
+    setFalsettoStart(value);
+    await saveTessitura(tessitura, value);
+  }
+
+  // 테시투라를 서버와 사용자 정보에 반영 (최초 측정·재도전·가성 구분 공통)
+  async function saveTessitura(tessitura, falsetto) {
+    if (!tessitura || !userId) return;
+    const midiValues = tessitura.notes.map(
+      (n) => NOTES_TO_TEST.find((x) => x.note === n).midi
+    );
+    midiValues.sort((a, b) => a - b);
+    const midi_min = midiValues[0];
+    const midi_max = midiValues[midiValues.length - 1];
+    const midi_median =
+      midiValues.length % 2 === 1
+        ? midiValues[Math.floor(midiValues.length / 2)]
+        : (midiValues[midiValues.length / 2 - 1] +
+            midiValues[midiValues.length / 2]) /
+          2;
+
+    const payload = {
+      user_id: userId,
+      midi_min,
+      midi_median,
+      midi_max,
+      low_note: tessitura.low,
+      high_note: tessitura.high,
+      avg_rms: null,
+      ...chestOf(tessitura, falsetto),
+    };
+    try {
+      await saveVocalRange(payload);
+      onTestComplete?.({
+        midi_min, midi_median, midi_max,
+        low_note: tessitura.low, high_note: tessitura.high,
+        chest_max: payload.chest_max, chest_high_note: payload.chest_high_note,
+      });
+    } catch (e) {
+      console.error("음역대 저장 실패:", e);
+    }
   }
 
   async function retryNote(noteName) {
@@ -415,16 +441,16 @@ export default function PitchTestPiano({ userId, onTestComplete }) {
       stopRecording();
       stopAll();
 
-      setResults((prev) => {
-        const next = prev.map((r) => (r.note === noteName ? updated : r));
-        const { tessitura: newTessitura } = estimateTessitura(next, {
-          strongThreshold: DEFAULTS.strongPercent,
-          minNotes: 3,
-          maxAllowedGaps: 1,
-        });
-        setTessitura(newTessitura);
-        return next;
+      // 재도전 결과로 테시투라를 다시 계산하고, 화면뿐 아니라 저장값에도 반영
+      const next = results.map((r) => (r.note === noteName ? updated : r));
+      const { tessitura: newTessitura } = estimateTessitura(next, {
+        strongThreshold: DEFAULTS.strongPercent,
+        minNotes: 3,
+        maxAllowedGaps: 1,
       });
+      setResults(next);
+      setTessitura(newTessitura);
+      await saveTessitura(newTessitura, falsettoStart);
 
       setRetriedNotes((prev) => [...prev, noteName]);
       setStatus("done");
@@ -568,6 +594,47 @@ export default function PitchTestPiano({ userId, onTestComplete }) {
               </div>
             </div>
           )}
+
+          {/* 가성 구분: 진성 최고음을 따로 저장해 곡 추천에 사용 */}
+          {tessitura && status === "done" && (() => {
+            const { chest_high_note } = chestOf(tessitura, falsettoStart);
+            const chipBase = "px-3 py-2 rounded-xl border text-sm transition";
+            const chipOn = "border-[#00d9b1]/60 bg-[#00d9b1]/20 text-[#00d9b1] font-semibold";
+            const chipOff = "border-white/15 bg-white/10 hover:bg-white/15 text-white";
+            return (
+              <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 text-white">
+                <div className="text-lg font-semibold">🎙 가성 구분</div>
+                <p className="mt-2 text-sm text-white/70 leading-relaxed">
+                  가성으로 바꿔 부른 <strong className="text-white">첫 음</strong>을 골라 주세요.
+                  그 아래 음까지를 진성 음역으로 보고 곡 추천에 사용합니다.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {tessitura.notes.slice(1).map((note) => (
+                    <button
+                      key={note}
+                      type="button"
+                      onClick={() => selectFalsettoStart(note)}
+                      className={`${chipBase} ${falsettoStart === note ? chipOn : chipOff}`}
+                    >
+                      {note}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => selectFalsettoStart("none")}
+                    className={`${chipBase} ${falsettoStart === "none" ? chipOn : chipOff}`}
+                  >
+                    가성 안 씀
+                  </button>
+                </div>
+                <p className="mt-3 text-xs text-white/60">
+                  {chest_high_note
+                    ? `진성 최고음 ${chest_high_note}${userId ? "(으)로 저장했습니다." : " (로그인하면 저장됩니다)"}`
+                    : "선택하지 않으면 가성을 포함한 최고음으로 곡을 추천합니다."}
+                </p>
+              </div>
+            );
+          })()}
 
           {/* 결과 테이블 */}
           <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden">
