@@ -16,15 +16,15 @@ export default function LoginPage({ onBack, onLogin, onGoSignup, isDarkMode }: P
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const bgColor = isDarkMode ? "bg-[#1f1f1f]/60" : "bg-[#f8f7f9]/60";
-  const textColor = isDarkMode ? "text-white" : "text-[#1f1f1f]";
-  const subTextColor = isDarkMode ? "text-white/70" : "text-[#1f1f1f]/70";
-  const border = isDarkMode ? "border-white/10" : "border-[#1f1f1f]/10";
-  const headerBg = isDarkMode ? "bg-[#1f1f1f]/90" : "bg-[#f8f7f9]/90";
-  const cardBg = isDarkMode ? "bg-white/8" : "bg-white/75";
-  const mutedCardBg = isDarkMode ? "bg-white/5" : "bg-[#1f1f1f]/5";
-  const inputBg = isDarkMode ? "bg-black/20" : "bg-white/80";
-  const placeholderColor = isDarkMode ? "placeholder:text-white/35" : "placeholder:text-black/35";
+  const dark = isDarkMode;
+  const bg = dark ? "bg-[#0a0a0a]" : "bg-[#f5f5f7]";
+  const text = dark ? "text-white" : "text-[#1d1d1f]";
+  const sub = dark ? "text-white/50" : "text-[#1d1d1f]/50";
+  const card = dark ? "bg-white/[0.04]" : "bg-black/[0.03]";
+  const cardHover = dark ? "hover:bg-white/[0.07]" : "hover:bg-black/[0.06]";
+  const border = dark ? "border-white/[0.08]" : "border-black/[0.08]";
+  const inputBg = dark ? "bg-white/[0.05]" : "bg-black/[0.04]";
+  const ph = dark ? "placeholder:text-white/25" : "placeholder:text-black/25";
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -43,157 +43,110 @@ export default function LoginPage({ onBack, onLogin, onGoSignup, isDarkMode }: P
   }
 
   return (
-    <div
-      className={`min-h-screen relative bg-cover bg-center bg-fixed bg-no-repeat ${bgColor}`}
-      style={{
-        backgroundImage:
-          "url('https://cdn.pixabay.com/photo/2022/07/10/01/47/grades-7312021_1280.jpg')",
-      }}
-    >
-      <div
-        className={`absolute inset-0 backdrop-blur-md ${
-          isDarkMode ? "bg-black/70" : "bg-white/70"
-        }`}
-      />
+    <div className={`min-h-screen ${bg} relative overflow-hidden`}>
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] rounded-full blur-[120px] opacity-20 bg-[#00d9b1]" />
+        <div className={`absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full blur-[100px] opacity-10 ${dark ? "bg-blue-500" : "bg-blue-400"}`} />
+      </div>
 
       <div className="relative z-10 min-h-screen flex flex-col font-['Pretendard']">
-        <header
-          className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b ${border} ${headerBg}`}
-        >
-          <div className="w-[85%] mx-auto px-12 py-6 flex items-center justify-between">
-            <button
-              onClick={onBack}
-              className={`p-2 rounded-lg transition-colors ${
-                isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
-              }`}
-              aria-label="뒤로 가기"
-            >
-              <ArrowLeft className={`w-6 h-6 ${textColor}`} />
+        <header className={`fixed top-0 left-0 right-0 z-50 ${dark ? "bg-[#0a0a0a]/80" : "bg-[#f5f5f7]/80"} backdrop-blur-xl border-b ${border}`}>
+          <div className="max-w-6xl mx-auto px-8 h-16 flex items-center justify-between">
+            <button onClick={onBack} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${card} ${cardHover} border ${border}`}>
+              <ArrowLeft className={`w-4 h-4 ${sub}`} />
             </button>
-
-            <h1 className={`text-[22px] font-thin tracking-wide ${textColor}`}>PitchWizard</h1>
-
+            <span className={`text-[15px] font-semibold tracking-tight ${text}`}>PitchWizard</span>
             <div className="w-8" />
           </div>
         </header>
 
-        <main className="flex-1 pt-32 pb-16 px-6 md:px-10">
-          <div className="w-full max-w-[1100px] mx-auto grid gap-10 lg:grid-cols-1 items-center">
-            <section className="pt-10 lg:pt-20" />
-
-            <section
-              className={`w-full max-w-[580px] mx-auto rounded-[32px] border ${border} ${cardBg} p-8 md:p-10 backdrop-blur-xl shadow-2xl shadow-black/15`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-sm uppercase tracking-[0.24em] ${subTextColor}`}>Account Access</p>
-                  <h3 className={`mt-3 text-3xl font-semibold ${textColor}`}>로그인</h3>
-                </div>
-                <div
-                  className={`flex h-14 w-14 items-center justify-center rounded-2xl ${
-                    isDarkMode ? "bg-white/10" : "bg-[#1f1f1f]/6"
-                  }`}
-                >
-                  <UserRound className={`w-7 h-7 ${textColor}`} />
-                </div>
+        <main className="flex-1 flex items-center justify-center pt-16 px-6 py-12">
+          <div className="w-full max-w-[440px]">
+            {/* 히어로 */}
+            <div className="text-center mb-10">
+              <div className={`inline-flex items-center gap-2 text-[12px] px-3 py-1 rounded-full border ${border} ${card} ${sub} mb-6`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00d9b1] animate-pulse" />
+                Account Access
               </div>
+              <h2 className={`text-[40px] font-bold leading-[1.05] tracking-tight ${text} mb-2`}>
+                다시 만나서<br />
+                <span className="text-[#00d9b1]">반가워요</span>
+              </h2>
+              <p className={`text-[15px] ${sub}`}>계속하려면 로그인해주세요</p>
+            </div>
 
-              <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-                <label className="block">
-                  <span className={`mb-2 block text-sm font-medium ${subTextColor}`}>아이디</span>
-                  <div
-                    className={`flex items-center gap-3 rounded-2xl border ${border} ${inputBg} px-4 py-4`}
-                  >
-                    <UserRound className={`w-5 h-5 ${subTextColor}`} />
-                    <input
-                      type="text"
-                      value={username}
-                      onChange={(event) => setUsername(event.target.value)}
-                      placeholder="아이디를 입력하세요"
-                      className={`w-full bg-transparent outline-none text-[16px] ${textColor} ${placeholderColor}`}
-                    />
-                  </div>
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <label className="block">
+                <span className={`mb-1.5 block text-[13px] font-medium ${sub}`}>아이디</span>
+                <div className={`flex items-center gap-3 rounded-xl border ${border} ${inputBg} px-4 py-3.5`}>
+                  <UserRound className={`w-4 h-4 ${sub} flex-shrink-0`} />
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="아이디를 입력하세요"
+                    className={`w-full bg-transparent outline-none text-[15px] ${text} ${ph}`}
+                  />
+                </div>
+              </label>
+
+              <label className="block">
+                <span className={`mb-1.5 block text-[13px] font-medium ${sub}`}>비밀번호</span>
+                <div className={`flex items-center gap-3 rounded-xl border ${border} ${inputBg} px-4 py-3.5`}>
+                  <Lock className={`w-4 h-4 ${sub} flex-shrink-0`} />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="비밀번호를 입력하세요"
+                    className={`w-full bg-transparent outline-none text-[15px] ${text} ${ph}`}
+                  />
+                </div>
+              </label>
+
+              <div className="flex items-center justify-between pt-0.5">
+                <label className={`flex items-center gap-2 text-[13px] ${sub} cursor-pointer`}>
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={() => setRememberMe((v) => !v)}
+                    className="h-3.5 w-3.5 rounded accent-[#00d9b1]"
+                  />
+                  로그인 상태 유지
                 </label>
-
-                <label className="block">
-                  <span className={`mb-2 block text-sm font-medium ${subTextColor}`}>비밀번호</span>
-                  <div
-                    className={`flex items-center gap-3 rounded-2xl border ${border} ${inputBg} px-4 py-4`}
-                  >
-                    <Lock className={`w-5 h-5 ${subTextColor}`} />
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      placeholder="비밀번호를 입력하세요"
-                      className={`w-full bg-transparent outline-none text-[16px] ${textColor} ${placeholderColor}`}
-                    />
-                  </div>
-                </label>
-
-                <div className="flex items-center justify-between gap-4 pt-1">
-                  <label className={`flex items-center gap-3 text-sm ${subTextColor}`}>
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={() => setRememberMe((value) => !value)}
-                      className="h-4 w-4 rounded border-white/30 accent-[#00d9b1]"
-                    />
-                    로그인 상태 유지
-                  </label>
-
-                  <button type="button" className="text-sm font-medium text-[#00d9b1]">
-                    비밀번호 찾기
-                  </button>
-                </div>
-
-                {error ? <p className="text-sm text-red-400 text-center">{error}</p> : null}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full rounded-2xl bg-gradient-to-r from-[#00d9b1] to-[#00efc4] py-4 text-[17px] font-semibold text-white shadow-xl shadow-[#00d9b1]/20 transition-transform hover:scale-[1.01] active:scale-100 disabled:opacity-60"
-                >
-                  {loading ? "로그인 중..." : "로그인하기"}
-                </button>
-              </form>
-
-              <div className="my-7 flex items-center gap-4">
-                <div className={`h-px flex-1 ${isDarkMode ? "bg-white/10" : "bg-black/10"}`} />
-                <span className={`text-xs uppercase tracking-[0.3em] ${subTextColor}`}>or</span>
-                <div className={`h-px flex-1 ${isDarkMode ? "bg-white/10" : "bg-black/10"}`} />
+                <button type="button" className="text-[13px] font-medium text-[#00d9b1]">비밀번호 찾기</button>
               </div>
 
-              <div className="grid gap-3">
-                <button
-                  type="button"
-                  className={`w-full rounded-2xl border ${border} ${mutedCardBg} py-4 text-[15px] font-medium ${textColor} transition-colors ${
-                    isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
-                  }`}
-                >
-                  Google로 계속하기
-                </button>
-                <button
-                  type="button"
-                  className={`w-full rounded-2xl border ${border} ${mutedCardBg} py-4 text-[15px] font-medium ${textColor} transition-colors ${
-                    isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
-                  }`}
-                >
-                  카카오로 계속하기
-                </button>
-              </div>
+              {error && <p className="text-[13px] text-red-400 text-center">{error}</p>}
 
-              <p className={`mt-8 text-center text-sm ${subTextColor}`}>
-                계정이 없으신가요?{" "}
-                <button
-                  type="button"
-                  onClick={onGoSignup}
-                  className="font-semibold text-[#00d9b1]"
-                >
-                  회원가입
-                </button>
-              </p>
-            </section>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 rounded-xl bg-[#00d9b1] text-white text-[15px] font-semibold shadow-lg shadow-[#00d9b1]/20 hover:shadow-[#00d9b1]/40 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 disabled:opacity-60"
+              >
+                {loading ? "로그인 중..." : "로그인하기"}
+              </button>
+            </form>
+
+            <div className="my-6 flex items-center gap-4">
+              <div className={`h-px flex-1 border-t ${border}`} />
+              <span className={`text-[11px] uppercase tracking-[0.3em] ${sub}`}>or</span>
+              <div className={`h-px flex-1 border-t ${border}`} />
+            </div>
+
+            <div className="grid gap-2.5">
+              <button type="button" className={`w-full rounded-xl border ${border} ${card} ${cardHover} py-3.5 text-[14px] font-medium ${text} transition-all`}>
+                Google로 계속하기
+              </button>
+              <button type="button" className={`w-full rounded-xl border ${border} ${card} ${cardHover} py-3.5 text-[14px] font-medium ${text} transition-all`}>
+                카카오로 계속하기
+              </button>
+            </div>
+
+            <p className={`mt-6 text-center text-[13px] ${sub}`}>
+              계정이 없으신가요?{" "}
+              <button type="button" onClick={onGoSignup} className="font-semibold text-[#00d9b1]">회원가입</button>
+            </p>
           </div>
         </main>
       </div>

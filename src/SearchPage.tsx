@@ -39,16 +39,12 @@ const MOCK_SONGS: SongItem[] = [
 function midiToNoteName(midi: number) {
   const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   const rounded = Math.round(midi);
-  const octave = Math.floor(rounded / 12) - 1;
-  return `${names[((rounded % 12) + 12) % 12]}${octave}`;
+  return `${names[((rounded % 12) + 12) % 12]}${Math.floor(rounded / 12) - 1}`;
 }
 
 function formatRangeLabel(song: SongItem) {
-  const min = song.midiMin;
-  const max = song.midiMax;
-  if (typeof min === "number" && typeof max === "number") {
-    return `${midiToNoteName(min)} ~ ${midiToNoteName(max)}`;
-  }
+  const { midiMin: min, midiMax: max } = song;
+  if (typeof min === "number" && typeof max === "number") return `${midiToNoteName(min)} ~ ${midiToNoteName(max)}`;
   return song.key ? `키 ${song.key}` : "";
 }
 
@@ -59,30 +55,21 @@ export default function SearchPage({ onBack, isDarkMode, onSelectSong, onSelectS
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  // 마운트 시 전체 곡 목록 로드
   useEffect(() => {
     setLoading(true);
     getSongCatalog()
-      .then((list) => {
-        setCatalog(list);
-        setError("");
-        setNotice("");
-      })
-      .catch(() => {
-        setCatalog(MOCK_SONGS);
-        setNotice("백엔드 연결이 없어 샘플 데이터로 표시 중입니다.");
-      })
+      .then((list) => { setCatalog(list); setError(""); setNotice(""); })
+      .catch(() => { setCatalog(MOCK_SONGS); setNotice("백엔드 연결이 없어 샘플 데이터로 표시 중입니다."); })
       .finally(() => setLoading(false));
   }, []);
 
-  const bgColor = isDarkMode ? "bg-[#1f1f1f]/60" : "bg-[#f8f7f9]/60";
-  const textColor = isDarkMode ? "text-white" : "text-[#1f1f1f]";
-  const subTextColor = isDarkMode ? "text-white/70" : "text-[#1f1f1f]/70";
-  const border = isDarkMode ? "border-white/10" : "border-[#1f1f1f]/10";
-  const headerBg = isDarkMode ? "bg-[#1f1f1f]/90" : "bg-[#f8f7f9]/90";
-  const inputBg = isDarkMode ? "bg-white/10" : "bg-white/70";
-  const placeholderColor = isDarkMode ? "placeholder:text-white/40" : "placeholder:text-black/40";
-  const cardBg = isDarkMode ? "bg-white/5" : "bg-[#1f1f1f]/5";
+  const dark = isDarkMode;
+  const bg = dark ? "bg-[#0a0a0a]" : "bg-[#f5f5f7]";
+  const text = dark ? "text-white" : "text-[#1d1d1f]";
+  const sub = dark ? "text-white/50" : "text-[#1d1d1f]/50";
+  const card = dark ? "bg-white/[0.04]" : "bg-black/[0.03]";
+  const cardHover = dark ? "hover:bg-white/[0.07]" : "hover:bg-black/[0.06]";
+  const border = dark ? "border-white/[0.08]" : "border-black/[0.08]";
 
   const filtered = catalog.filter((song) => {
     const q = query.toLowerCase();
@@ -90,179 +77,117 @@ export default function SearchPage({ onBack, isDarkMode, onSelectSong, onSelectS
   });
 
   return (
-    <div
-      className={`min-h-screen relative bg-cover bg-center bg-fixed bg-no-repeat ${bgColor}`}
-      style={{
-        backgroundImage:
-          "url('https://cdn.pixabay.com/photo/2022/07/10/01/47/grades-7312021_1280.jpg')",
-      }}
-    >
-      {/* Background overlay */}
-      <div
-        className={`absolute inset-0 backdrop-blur-md ${
-          isDarkMode ? "bg-black/80" : "bg-white/60"
-        }`}
-      />
+    <div className={`min-h-screen ${bg} relative overflow-hidden`}>
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] rounded-full blur-[120px] opacity-20 bg-[#00d9b1]" />
+        <div className={`absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full blur-[100px] opacity-10 ${dark ? "bg-blue-500" : "bg-blue-400"}`} />
+      </div>
 
       <div className="relative z-10 min-h-screen flex flex-col font-['Pretendard']">
-        <header
-          className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b ${border} ${headerBg}`}
-        >
-          <div className="w-[85%] mx-auto px-12 py-6 flex items-center justify-between">
-            <button
-              onClick={onBack}
-              className={`p-2 rounded-lg transition-colors ${
-                isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
-              }`}
-              aria-label="뒤로 가기"
-            >
-              <ArrowLeft className={`w-6 h-6 ${textColor}`} />
+        <header className={`fixed top-0 left-0 right-0 z-50 ${dark ? "bg-[#0a0a0a]/80" : "bg-[#f5f5f7]/80"} backdrop-blur-xl border-b ${border}`}>
+          <div className="max-w-6xl mx-auto px-8 h-16 flex items-center justify-between">
+            <button onClick={onBack} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${card} ${cardHover} border ${border}`}>
+              <ArrowLeft className={`w-4 h-4 ${sub}`} />
             </button>
-
-            <h1 className={`font-['Pretendard'] text-[22px] font-thin tracking-wide ${textColor}`}>
-              PitchWizard
-            </h1>
-
+            <span className={`text-[15px] font-semibold tracking-tight ${text}`}>PitchWizard</span>
             <div className="w-8" />
           </div>
         </header>
 
-        <main className="pt-40 px-6 md:px-10 pb-20">
-          <div className="w-[92%] max-w-[1320px] mx-auto">
-            <div className="text-center">
-              <h2 className={`text-[38px] font-bold ${textColor}`}>노래 찾기</h2>
-              <p className={`mt-4 text-[16px] ${subTextColor}`}>
-                내 음역대에 맞는 노래를 찾아보세요
-              </p>
+        <main className="flex-1 flex flex-col pt-16 px-8 pb-16 max-w-6xl mx-auto w-full">
+          {/* 히어로 */}
+          <div className="text-center pt-16 pb-10">
+            <div className={`inline-flex items-center gap-2 text-[12px] px-3 py-1 rounded-full border ${border} ${card} ${sub} mb-7`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00d9b1] animate-pulse" />
+              Song Library
             </div>
+            <h2 className={`text-[52px] font-bold leading-[1.05] tracking-tight ${text} mb-4`}>
+              내 목소리에 맞는<br />
+              <span className="text-[#00d9b1]">노래를 찾아보세요</span>
+            </h2>
+            <p className={`text-[16px] ${sub} leading-relaxed max-w-md mx-auto`}>
+              음역대 데이터를 기반으로 어울리는 곡을 추천합니다
+            </p>
+          </div>
 
-            <div className="mt-12 flex justify-center">
-              <div
-                className={`w-full max-w-[1160px] rounded-[24px] border ${border} px-2 backdrop-blur-xl ${
-                  isDarkMode
-                    ? "bg-white/8 shadow-[0_14px_38px_rgba(0,0,0,0.35)]"
-                    : "bg-white/88 shadow-[0_14px_38px_rgba(0,0,0,0.10)]"
-                }`}
-              >
-                <div className="flex items-center gap-4 px-5 py-3.5">
-                  <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
-                      isDarkMode ? "bg-white/10" : "bg-black/5"
-                    }`}
+          {/* 검색 바 */}
+          <div className={`flex items-center gap-3 rounded-2xl border ${border} ${card} px-5 py-3.5 mb-5`}>
+            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${dark ? "bg-white/[0.06]" : "bg-black/[0.05]"}`}>
+              <Search className={`w-4 h-4 ${sub}`} />
+            </div>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="노래 제목이나 가수를 검색해보세요"
+              className={`w-full bg-transparent outline-none text-[15px] ${text} ${dark ? "placeholder:text-white/25" : "placeholder:text-black/25"}`}
+            />
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-[13px] text-red-400 mb-4">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" /><span>{error}</span>
+            </div>
+          )}
+          {notice && (
+            <div className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-[13px] mb-4 ${dark ? "border-amber-300/20 bg-amber-400/[0.08] text-amber-300" : "border-amber-500/25 bg-amber-100/50 text-amber-700"}`}>
+              <AlertCircle className="h-4 w-4 flex-shrink-0" /><span>{notice}</span>
+            </div>
+          )}
+
+          <section>
+            {loading ? (
+              <div className={`rounded-2xl border ${border} ${card} px-5 py-14 text-center`}>
+                <Loader2 className={`mx-auto h-5 w-5 animate-spin ${sub} mb-3`} />
+                <p className={`text-[13px] ${sub}`}>곡 목록을 불러오는 중입니다...</p>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className={`rounded-2xl border ${border} ${card} px-5 py-14 text-center`}>
+                <p className={`text-[13px] ${sub}`}>검색 결과가 없습니다.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className={`text-[12px] ${sub} mb-3`}>총 {filtered.length}곡</p>
+                {filtered.map((song) => (
+                  <button
+                    type="button"
+                    onClick={() => onSelectSong?.(song)}
+                    key={song.id}
+                    className={`w-full text-left rounded-2xl border ${border} ${card} p-5 transition-all ${cardHover} hover:border-[#00d9b1]/20 group`}
                   >
-                    <Search className={`w-5 h-5 ${subTextColor}`} />
-                  </div>
-                  <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="노래 제목이나 가수를 검색해보세요"
-                    className={`w-full bg-transparent outline-none border-none text-[16px] md:text-[17px] ${textColor} ${placeholderColor}`}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {error ? (
-              <div className="mx-auto mt-6 flex w-full max-w-[1160px] items-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                <AlertCircle className="h-4 w-4" />
-                <span>{error}</span>
-              </div>
-            ) : null}
-
-            {notice ? (
-              <div
-                className={`mx-auto mt-4 flex w-full max-w-[1160px] items-center gap-2 rounded-xl border px-4 py-3 text-sm ${
-                  isDarkMode
-                    ? "border-amber-300/25 bg-amber-400/10 text-amber-200"
-                    : "border-amber-500/30 bg-amber-100/70 text-amber-800"
-                }`}
-              >
-                <AlertCircle className="h-4 w-4" />
-                <span>{notice}</span>
-              </div>
-            ) : null}
-
-            <section className="mx-auto mt-8 w-full max-w-[1160px]">
-              {loading ? (
-                <div className={`rounded-2xl border ${border} ${cardBg} px-5 py-12 text-center`}>
-                  <Loader2 className={`mx-auto h-6 w-6 animate-spin ${subTextColor}`} />
-                  <p className={`mt-3 text-sm ${subTextColor}`}>곡 목록을 불러오는 중입니다...</p>
-                </div>
-              ) : filtered.length === 0 ? (
-                <div className={`rounded-2xl border ${border} ${cardBg} px-5 py-12 text-center`}>
-                  <p className={`text-sm ${subTextColor}`}>검색 결과가 없습니다.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <p className={`text-sm ${subTextColor}`}>총 {filtered.length}곡</p>
-                  {filtered.map((song) => (
-                    <button
-                      type="button"
-                      onClick={() => onSelectSong?.(song)}
-                      key={song.id}
-                      className={`w-full text-left rounded-2xl border ${border} ${cardBg} p-6 backdrop-blur-sm transition-colors ${
-                        isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
-                      }`}
-                    >
-                      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
-                        <div className="flex min-w-0 items-center gap-4">
-                          <div
-                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-                              isDarkMode ? "bg-white/10" : "bg-[#1f1f1f]/10"
-                            }`}
-                          >
-                            <Music2 className={`h-5 w-5 ${textColor}`} />
-                          </div>
-                          <div className="min-w-0">
-                            <p className={`truncate text-[18px] font-semibold ${textColor}`}>
-                              {song.title}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); onSelectSinger?.(song.artist); }}
-                              className={`truncate text-sm ${subTextColor} hover:text-[#00efc4] transition-colors`}
-                            >
-                              {song.artist}
-                            </button>
-                          </div>
+                    <div className="flex items-center gap-4 justify-between">
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${border} ${dark ? "bg-white/[0.05]" : "bg-black/[0.04]"} group-hover:border-[#00d9b1]/30 transition-colors`}>
+                          <Music2 className={`h-4 w-4 ${sub}`} />
                         </div>
-
-                        <div className="flex flex-wrap gap-2 md:justify-end">
-                          {formatRangeLabel(song) ? (
-                            <span className="rounded-full border border-[#00d9b1]/35 px-3 py-1 text-xs text-[#00e5be]">
-                              음역 {formatRangeLabel(song)}
-                            </span>
-                          ) : null}
-                          {typeof song.midiMedian === "number" ? (
-                            <span
-                              className={`rounded-full border ${border} px-3 py-1 text-xs ${subTextColor}`}
-                            >
-                              중앙 {midiToNoteName(song.midiMedian)}
-                            </span>
-                          ) : null}
-                          {song.album ? (
-                            <span
-                              className={`rounded-full border ${border} px-3 py-1 text-xs ${subTextColor}`}
-                            >
-                              앨범 {song.album}
-                            </span>
-                          ) : null}
-                          {song.duration ? (
-                            <span
-                              className={`rounded-full border ${border} px-3 py-1 text-xs ${subTextColor}`}
-                            >
-                              재생 {song.duration}
-                            </span>
-                          ) : null}
+                        <div className="min-w-0">
+                          <p className={`truncate text-[16px] font-semibold ${text}`}>{song.title}</p>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onSelectSinger?.(song.artist); }}
+                            className={`text-[13px] ${sub} hover:text-[#00d9b1] transition-colors`}
+                          >
+                            {song.artist}
+                          </button>
                         </div>
                       </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
+                      <div className="flex flex-wrap gap-1.5 justify-end flex-shrink-0">
+                        {formatRangeLabel(song) && (
+                          <span className="rounded-full border border-[#00d9b1]/30 px-2.5 py-0.5 text-[11px] text-[#00d9b1]">{formatRangeLabel(song)}</span>
+                        )}
+                        {typeof song.midiMedian === "number" && (
+                          <span className={`rounded-full border ${border} px-2.5 py-0.5 text-[11px] ${sub}`}>중앙 {midiToNoteName(song.midiMedian)}</span>
+                        )}
+                        {song.duration && (
+                          <span className={`rounded-full border ${border} px-2.5 py-0.5 text-[11px] ${sub}`}>{song.duration}</span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
         </main>
       </div>
     </div>

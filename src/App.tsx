@@ -3,14 +3,13 @@ import {
   CheckCircle,
   Headphones,
   LogIn,
-  Menu,
   Moon,
-  Music,
+  Music2,
   Search,
   Smile,
-  Sparkles,
   Sun,
   VolumeX,
+  Waves,
   X,
 } from "lucide-react";
 import AccompanimentPage from "./AccompanimentPage.tsx";
@@ -49,385 +48,207 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
 
-  function handleLogin(userData: any) {
-    setUser(userData);
-  }
+  function handleLogin(userData: any) { setUser(userData); }
+  function handleLogout() { localStorage.removeItem("user"); setUser(null); }
 
-  function handleLogout() {
-    localStorage.removeItem("user");
-    setUser(null);
-  }
+  if (currentPage === "login") return <LoginPage onBack={() => setCurrentPage("home")} onLogin={handleLogin} onGoSignup={() => setCurrentPage("signup")} isDarkMode={isDarkMode} />;
+  if (currentPage === "signup") return <SignupPage onBack={() => setCurrentPage("home")} onGoLogin={() => setCurrentPage("login")} isDarkMode={isDarkMode} />;
+  if (currentPage === "test") return <PitchTest onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} user={user} onTestComplete={(updated: any) => { const u = { ...user, ...updated }; setUser(u); localStorage.setItem("user", JSON.stringify(u)); }} />;
+  if (currentPage === "search") return <SearchPage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} onSelectSong={(song) => { setSelectedSong(song); setCurrentPage("songDetail"); }} onSelectSinger={(name) => { setSelectedSinger(name); setSingerFrom("search"); setCurrentPage("singer"); }} />;
+  if (currentPage === "songDetail" && selectedSong) return <SongDetailPage onBack={() => setCurrentPage("search")} onGoAccompaniment={() => setCurrentPage("accompaniment")} isDarkMode={isDarkMode} user={user} song={selectedSong} />;
+  if (currentPage === "songDetail" && !selectedSong) return <SearchPage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} onSelectSong={(song) => { setSelectedSong(song); setCurrentPage("songDetail"); }} />;
+  if (currentPage === "accompaniment") return <AccompanimentPage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} user={user} initialSongId={selectedSong?.id} initialSongTitle={selectedSong?.title} initialSongArtist={selectedSong?.artist} />;
+  if (currentPage === "range") return <VoiceRangePage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} user={user} onSelectSinger={(name) => { setSelectedSinger(name); setSingerFrom("range"); setCurrentPage("singer"); }} />;
+  if (currentPage === "singer" && selectedSinger) return <SingerPage singerName={selectedSinger} onBack={() => setCurrentPage(singerFrom)} isDarkMode={isDarkMode} />;
 
-  if (currentPage === "login") {
-    return (
-      <LoginPage
-        onBack={() => setCurrentPage("home")}
-        onLogin={handleLogin}
-        onGoSignup={() => setCurrentPage("signup")}
-        isDarkMode={isDarkMode}
-      />
-    );
-  }
+  const dark = isDarkMode;
+  const bg = dark ? "bg-[#0a0a0a]" : "bg-[#f5f5f7]";
+  const text = dark ? "text-white" : "text-[#1d1d1f]";
+  const sub = dark ? "text-white/50" : "text-[#1d1d1f]/50";
+  const card = dark ? "bg-white/[0.04]" : "bg-black/[0.03]";
+  const cardHover = dark ? "hover:bg-white/[0.07]" : "hover:bg-black/[0.06]";
+  const border = dark ? "border-white/[0.08]" : "border-black/[0.08]";
 
-  if (currentPage === "signup") {
-    return (
-      <SignupPage
-        onBack={() => setCurrentPage("home")}
-        onGoLogin={() => setCurrentPage("login")}
-        isDarkMode={isDarkMode}
-      />
-    );
-  }
-
-  if (currentPage === "test") {
-    return (
-      <PitchTest
-        onBack={() => setCurrentPage("home")}
-        isDarkMode={isDarkMode}
-        user={user}
-        onTestComplete={(updated: any) => {
-          const newUser = { ...user, ...updated };
-          setUser(newUser);
-          localStorage.setItem("user", JSON.stringify(newUser));
-        }}
-      />
-    );
-  }
-
-  if (currentPage === "search") {
-    return (
-      <SearchPage
-        onBack={() => setCurrentPage("home")}
-        isDarkMode={isDarkMode}
-        onSelectSong={(song) => {
-          setSelectedSong(song);
-          setCurrentPage("songDetail");
-        }}
-        onSelectSinger={(name) => { setSelectedSinger(name); setSingerFrom("search"); setCurrentPage("singer"); }}
-      />
-    );
-  }
-
-  if (currentPage === "songDetail" && selectedSong) {
-    return (
-      <SongDetailPage
-        onBack={() => setCurrentPage("search")}
-        onGoAccompaniment={() => setCurrentPage("accompaniment")}
-        isDarkMode={isDarkMode}
-        user={user}
-        song={selectedSong}
-      />
-    );
-  }
-
-  if (currentPage === "songDetail" && !selectedSong) {
-    return (
-      <SearchPage
-        onBack={() => setCurrentPage("home")}
-        isDarkMode={isDarkMode}
-        onSelectSong={(song) => {
-          setSelectedSong(song);
-          setCurrentPage("songDetail");
-        }}
-      />
-    );
-  }
-
-  if (currentPage === "accompaniment") {
-    return (
-      <AccompanimentPage
-        onBack={() => setCurrentPage("home")}
-        isDarkMode={isDarkMode}
-        user={user}
-        initialSongId={selectedSong?.id}
-        initialSongTitle={selectedSong?.title}
-        initialSongArtist={selectedSong?.artist}
-      />
-    );
-  }
-
-  if (currentPage === "range") {
-    return (
-      <VoiceRangePage
-        onBack={() => setCurrentPage("home")}
-        isDarkMode={isDarkMode}
-        user={user}
-        onSelectSinger={(name) => { setSelectedSinger(name); setSingerFrom("range"); setCurrentPage("singer"); }}
-      />
-    );
-  }
-
-  if (currentPage === "singer" && selectedSinger) {
-    return (
-      <SingerPage
-        singerName={selectedSinger}
-        onBack={() => setCurrentPage(singerFrom)}
-        isDarkMode={isDarkMode}
-      />
-    );
-  }
-
-  const bgColor = isDarkMode ? "bg-[#1f1f1f]/60" : "bg-[#f8f7f9]/60";
-  const textColor = isDarkMode ? "text-[#f8f7f9]" : "text-[#1f1f1f]";
-  const textSecondary = isDarkMode ? "text-[#f8f7f9]/70" : "text-[#1f1f1f]/70";
-  const textTertiary = isDarkMode ? "text-[#f8f7f9]/60" : "text-[#1f1f1f]/60";
-  const cardBg = isDarkMode ? "bg-white/5" : "bg-[#1f1f1f]/5";
-  const cardHoverBg = isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10";
-  const border = isDarkMode ? "border-white/10" : "border-[#1f1f1f]/10";
-  const iconBg = isDarkMode ? "bg-[#f8f7f9]" : "bg-[#1f1f1f]";
-  const iconColor = isDarkMode ? "text-[#1f1f1f]" : "text-[#f8f7f9]";
-  const heroOffsetClass = "mt-[244px]";
+  const features = [
+    {
+      icon: <Music2 className="w-5 h-5" />,
+      title: "나의 음역대",
+      desc: "테스트 결과와 유사 가수를 확인합니다",
+      page: "range" as Page,
+    },
+    {
+      icon: <Search className="w-5 h-5" />,
+      title: "노래 검색",
+      desc: "내 목소리에 맞는 노래를 찾습니다",
+      page: "search" as Page,
+    },
+    {
+      icon: <Waves className="w-5 h-5" />,
+      title: "실시간 피치",
+      desc: "반주에 맞춰 내 피치를 분석합니다",
+      page: "accompaniment" as Page,
+    },
+  ];
 
   return (
-    <div
-      className={`min-h-screen relative bg-cover bg-center bg-fixed bg-no-repeat ${bgColor}`}
-      style={{
-        backgroundImage:
-          "url('https://cdn.pixabay.com/photo/2022/07/10/01/47/grades-7312021_1280.jpg')",
-      }}
-    >
-      <div
-        className={`absolute inset-0 backdrop-blur-md ${
-          isDarkMode ? "bg-black/60" : "bg-white/60"
-        }`}
-      />
+    <div className={`min-h-screen ${bg} relative overflow-hidden`}>
+      {/* 배경 그라디언트 */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] rounded-full blur-[120px] opacity-20 ${dark ? "bg-[#00d9b1]" : "bg-[#00d9b1]"}`} />
+        <div className={`absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full blur-[100px] opacity-10 ${dark ? "bg-blue-500" : "bg-blue-400"}`} />
+      </div>
 
-      <div className="relative z-10">
-        <header
-          className={`
-            fixed top-0 left-0 right-0 z-50
-            ${isDarkMode ? "bg-[#1f1f1f]/90" : "bg-[#f8f7f9]/90"}
-            backdrop-blur-md border-b ${border}
-          `}
-        >
-          <div className="w-[85%] mx-auto px-12 py-6 flex items-center justify-between">
-            <h1 className={`font-['Pretendard'] text-[22px] font-thin tracking-wide ${textColor}`}>
-              PitchWizard
-            </h1>
+      <div className="relative z-10 flex flex-col min-h-screen">
+        {/* 헤더 */}
+        <header className={`fixed top-0 left-0 right-0 z-50 ${dark ? "bg-[#0a0a0a]/80" : "bg-[#f5f5f7]/80"} backdrop-blur-xl border-b ${border}`}>
+          <div className="max-w-6xl mx-auto px-8 h-16 flex items-center justify-between">
 
-            <div className="flex items-center gap-3">
+            {/* 로고 영역 */}
+            <div className="flex items-center gap-2.5">
+              <div className={`w-8 h-8 rounded-lg overflow-hidden border ${border} flex items-center justify-center flex-shrink-0 ${dark ? "bg-white/5" : "bg-black/5"}`}>
+                {/* ↓ /public/logo.png 파일 추가 시 자동 표시 */}
+                <img
+                  src="/logo.png"
+                  alt="logo"
+                  className="w-full h-full object-contain"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                />
+              </div>
+              <span className={`text-[15px] font-semibold tracking-tight ${text}`}>PitchWizard</span>
+            </div>
+
+            {/* 우측 컨트롤 */}
+            <div className="flex items-center gap-2">
               {user ? (
-                <div className="flex items-center gap-3">
-                  <span className={`text-sm ${textSecondary}`}>{user.username}</span>
+                <>
+                  <span className={`text-[13px] ${sub} mr-1`}>{user.username}</span>
                   <button
                     onClick={handleLogout}
-                    className={`px-4 py-2 rounded-full border ${border} ${cardBg} ${textColor} transition-colors ${
-                      isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
-                    } text-sm`}
+                    className={`text-[13px] px-3.5 py-1.5 rounded-full border ${border} ${card} ${text} transition-all ${cardHover}`}
                   >
                     로그아웃
                   </button>
-                </div>
+                </>
               ) : (
                 <button
                   onClick={() => setCurrentPage("login")}
-                  className={`px-4 py-2 rounded-full border ${border} ${cardBg} ${textColor} transition-colors ${
-                    isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
-                  } flex items-center gap-2`}
+                  className={`text-[13px] px-3.5 py-1.5 rounded-full border ${border} ${card} ${text} transition-all ${cardHover} flex items-center gap-1.5`}
                 >
-                  <LogIn className="w-4 h-4" />
+                  <LogIn className="w-3.5 h-3.5" />
                   로그인
                 </button>
               )}
-
               <button
                 onClick={() => setIsDarkMode(!isDarkMode)}
-                className={`p-2 rounded-lg transition-colors ${
-                  isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
-                }`}
-                aria-label={isDarkMode ? "라이트 모드로 전환" : "다크 모드로 전환"}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${card} ${cardHover} border ${border}`}
               >
-                {isDarkMode ? (
-                  <Sun className={`w-6 h-6 ${textColor}`} />
-                ) : (
-                  <Moon className={`w-6 h-6 ${textColor}`} />
-                )}
-              </button>
-
-              <button
-                className={`p-2 rounded-lg transition-colors ${
-                  isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
-                }`}
-                aria-label="메뉴 열기"
-              >
-                <Menu className={`w-6 h-6 ${textColor}`} />
+                {dark ? <Sun className={`w-4 h-4 ${sub}`} /> : <Moon className={`w-4 h-4 ${sub}`} />}
               </button>
             </div>
           </div>
         </header>
 
-        <main className="pt-32 md:pt-40 px-10 pb-40">
-          <div className="w-[85%] mx-auto flex flex-col items-center">
-            <div className={heroOffsetClass}>
-              <div className="flex flex-col items-center text-center max-w-3xl space-y-0">
-                <h2 className={`font-['Pretendard'] font-thin text-[56px] ${textColor}`}>
-                  자신의 음역대를 찾고
-                </h2>
+        {/* 히어로 */}
+        <main className="flex-1 flex flex-col items-center justify-center pt-16 px-8">
+          <div className="max-w-3xl w-full mx-auto text-center pt-28 pb-20">
 
-                <h1 className="font-['Pretendard'] text-[83px] font-bold leading-tight text-[#00d9b1]">
-                  자신 있게 노래하세요
-                </h1>
-
-                <div className="translate-y-[90px]">
-                  <button
-                    onClick={() => setShowModal(true)}
-                    className="px-14 py-5 rounded-full border border-white/40 bg-white/10 backdrop-blur-lg shadow-xl shadow-white/5 text-white text-[20px] font-semibold flex items-center gap-3 transition-colors duration-300 hover:bg-[#00d9b1]/65"
-                  >
-                    음역대 찾기
-                    <Music className="w-6 h-6" />
-                  </button>
-                </div>
-
-                <div className="flex gap-10 pt-[160px]">
-                  {["5분 소요", "무료", "간편한 분석"].map((label) => (
-                    <div key={label} className="flex items-center gap-3">
-                      <CheckCircle className={`w-5 h-5 ${textColor}`} />
-                      <span className={`text-[16px] ${textTertiary}`}>{label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {/* 뱃지 */}
+            <div className={`inline-flex items-center gap-2 text-[12px] px-3 py-1 rounded-full border ${border} ${card} ${sub} mb-8`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00d9b1] animate-pulse" />
+              AI 기반 음역대 분석
             </div>
 
-            <div className="w-full mt-32 grid md:grid-cols-3 gap-12">
-              <button
-                onClick={() => setCurrentPage("range")}
-                className={`relative text-left w-full ${cardBg} border ${border} rounded-2xl p-10 backdrop-blur-sm transition-all ${cardHoverBg}`}
-              >
-                <div className={`w-16 h-16 rounded-xl flex items-center justify-center mb-5 ${iconBg}`}>
-                  <Music className={`w-8 h-8 ${iconColor}`} />
-                </div>
-                <h3 className={`text-[24px] font-semibold mb-3 ${textColor}`}>나의 음역대</h3>
-                <p className={`text-[16px] ${textTertiary}`}>
-                  테스트 결과와 음역 해석, 유사 가수 정보를 확인합니다
-                </p>
-              </button>
+            <h1 className={`font-['Pretendard'] text-[64px] md:text-[80px] font-bold leading-[1.05] tracking-tight ${text} mb-5`}>
+              자신의 목소리를<br />
+              <span className="text-[#00d9b1]">정확하게</span> 파악하세요
+            </h1>
 
+            <p className={`text-[17px] ${sub} mb-10 leading-relaxed max-w-xl mx-auto`}>
+              음역대 테스트부터 실시간 피치 분석까지,<br />더 잘 노래할 수 있도록 도와드립니다
+            </p>
+
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <button
+                onClick={() => setShowModal(true)}
+                className="px-8 py-3.5 rounded-full bg-[#00d9b1] text-white text-[15px] font-semibold shadow-lg shadow-[#00d9b1]/20 hover:shadow-[#00d9b1]/40 hover:scale-[1.02] active:scale-[0.99] transition-all duration-200"
+              >
+                음역대 테스트 시작
+              </button>
               <button
                 onClick={() => setCurrentPage("search")}
-                className={`relative text-left w-full ${cardBg} border ${border} rounded-2xl p-10 backdrop-blur-sm transition-all ${cardHoverBg}`}
+                className={`px-8 py-3.5 rounded-full border ${border} ${card} ${text} text-[15px] font-medium transition-all ${cardHover} hover:scale-[1.02]`}
               >
-                <div className={`w-16 h-16 rounded-xl flex items-center justify-center mb-5 ${iconBg}`}>
-                  <Search className={`w-8 h-8 ${iconColor}`} />
-                </div>
-                <h3 className={`text-[24px] font-semibold mb-3 ${textColor}`}>노래 검색</h3>
-                <p className={`text-[16px] ${textTertiary}`}>
-                  당신에게 맞는 노래를 추천합니다
-                </p>
-              </button>
-
-              <button
-                onClick={() => setCurrentPage("accompaniment")}
-                className={`relative text-left w-full ${cardBg} border ${border} rounded-2xl p-10 backdrop-blur-sm transition-all ${cardHoverBg}`}
-              >
-                <div className={`w-16 h-16 rounded-xl flex items-center justify-center mb-5 ${iconBg}`}>
-                  <Sparkles className={`w-8 h-8 ${iconColor}`} />
-                </div>
-                <h3 className={`text-[24px] font-semibold mb-3 ${textColor}`}>노래 추천</h3>
-                <p className={`text-[16px] ${textTertiary}`}>반주 제공 페이지로 연결됩니다</p>
+                노래 검색
               </button>
             </div>
+
+            <div className={`flex items-center justify-center gap-6 mt-10 text-[13px] ${sub}`}>
+              {["5분 소요", "무료", "간편한 분석"].map((label) => (
+                <span key={label} className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-[#00d9b1]" />
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* 기능 카드 */}
+          <div className="max-w-5xl w-full mx-auto grid md:grid-cols-3 gap-4 pb-24 px-4">
+            {features.map((f) => (
+              <button
+                key={f.page}
+                onClick={() => setCurrentPage(f.page)}
+                className={`text-left p-6 rounded-2xl border ${border} ${card} ${cardHover} transition-all group hover:border-[#00d9b1]/30`}
+              >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-4 border ${border} ${dark ? "bg-white/5 text-white/70" : "bg-black/5 text-black/60"} group-hover:text-[#00d9b1] group-hover:border-[#00d9b1]/30 transition-colors`}>
+                  {f.icon}
+                </div>
+                <h3 className={`text-[16px] font-semibold mb-1.5 ${text}`}>{f.title}</h3>
+                <p className={`text-[13px] leading-relaxed ${sub}`}>{f.desc}</p>
+              </button>
+            ))}
           </div>
         </main>
       </div>
 
+      {/* 테스트 안내 모달 */}
       {showModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={() => setShowModal(false)}
-          />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)} />
+          <div className={`relative w-full max-w-lg ${dark ? "bg-[#111]" : "bg-white"} rounded-3xl border ${border} shadow-2xl overflow-hidden`}>
 
-          <div
-            className={`relative w-full max-w-2xl ${
-              isDarkMode ? "bg-[#1f1f1f]" : "bg-[#f8f7f9]"
-            } rounded-3xl shadow-2xl border ${border} overflow-hidden`}
-          >
-            <div className="relative p-10 pb-8">
-              <button
-                onClick={() => setShowModal(false)}
-                className={`absolute top-6 right-6 p-2 rounded-lg transition-colors ${
-                  isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
-                }`}
-                aria-label="안내 닫기"
-              >
-                <X className={`w-6 h-6 ${textColor}`} />
+            <div className="p-8 pb-6">
+              <button onClick={() => setShowModal(false)} className={`absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center ${card} ${cardHover} transition-all`}>
+                <X className={`w-4 h-4 ${sub}`} />
               </button>
-
-              <h2 className={`font-['Pretendard'] text-[32px] font-bold ${textColor} mb-3`}>
-                테스트 시작 전 안내
-              </h2>
-              <p className={`font-['Pretendard'] text-[16px] ${textSecondary}`}>
-                정확한 음역대 측정을 위해 아래 사항을 확인해주세요
-              </p>
+              <h2 className={`text-[24px] font-bold ${text} mb-1`}>테스트 시작 전 안내</h2>
+              <p className={`text-[14px] ${sub}`}>정확한 측정을 위해 아래 사항을 확인해주세요</p>
             </div>
 
-            <div className="px-10 pb-6 space-y-8">
-              <div className="flex gap-6 items-start">
-                <div
-                  className={`flex-shrink-0 w-16 h-16 rounded-2xl ${cardBg} border ${border} flex items-center justify-center`}
-                >
-                  <VolumeX className={`w-8 h-8 ${textColor}`} />
+            <div className={`mx-6 mb-6 space-y-2 p-4 rounded-2xl border ${border} ${card}`}>
+              {[
+                { icon: <VolumeX className="w-4 h-4" />, title: "조용한 환경", desc: "주변 소음이 적은 공간을 선택하세요" },
+                { icon: <Smile className="w-4 h-4" />, title: "편안한 발성", desc: "무리하지 않고 편안하게 불러주세요" },
+                { icon: <Headphones className="w-4 h-4" />, title: "헤드폰 권장", desc: "이어폰 착용 시 더 정확한 측정이 가능합니다" },
+              ].map((item) => (
+                <div key={item.title} className={`flex items-start gap-3 p-3 rounded-xl ${cardHover} transition-all`}>
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? "bg-white/8 text-white/60" : "bg-black/5 text-black/50"}`}>
+                    {item.icon}
+                  </div>
+                  <div>
+                    <p className={`text-[13px] font-semibold ${text}`}>{item.title}</p>
+                    <p className={`text-[12px] ${sub} mt-0.5`}>{item.desc}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className={`font-['Pretendard'] text-[20px] font-semibold ${textColor} mb-2`}>
-                    조용한 환경
-                  </h3>
-                  <p className={`font-['Pretendard'] text-[16px] ${textSecondary} leading-relaxed`}>
-                    주변 소음이 적은 조용한 공간에서 테스트를 진행해주세요
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-6 items-start">
-                <div
-                  className={`flex-shrink-0 w-16 h-16 rounded-2xl ${cardBg} border ${border} flex items-center justify-center`}
-                >
-                  <Smile className={`w-8 h-8 ${textColor}`} />
-                </div>
-                <div>
-                  <h3 className={`font-['Pretendard'] text-[20px] font-semibold ${textColor} mb-2`}>
-                    편안한 발성
-                  </h3>
-                  <p className={`font-['Pretendard'] text-[16px] ${textSecondary} leading-relaxed`}>
-                    무리하게 높은 음을 내지 말고, 편안하게 부를 수 있는 음역대로 노래해주세요
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-6 items-start">
-                <div
-                  className={`flex-shrink-0 w-16 h-16 rounded-2xl ${cardBg} border ${border} flex items-center justify-center`}
-                >
-                  <Headphones className={`w-8 h-8 ${textColor}`} />
-                </div>
-                <div>
-                  <h3 className={`font-['Pretendard'] text-[20px] font-semibold ${textColor} mb-2`}>
-                    헤드폰 권장
-                  </h3>
-                  <p className={`font-['Pretendard'] text-[16px] ${textSecondary} leading-relaxed`}>
-                    헤드폰이나 이어폰을 착용하면 더 정확한 측정이 가능합니다
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
 
-            <div className={`mx-10 mb-6 p-6 rounded-2xl ${cardBg} border ${border}`}>
-              <p className={`font-['Pretendard'] text-[16px] ${textSecondary} leading-relaxed text-center`}>
-                <span className={`font-semibold ${textColor}`}>테스트 방법:</span> 제시되는 음을 듣고
-                해당 음을 따라 불러주세요
-              </p>
-            </div>
-
-            <div className="p-10 pt-4">
+            <div className="px-6 pb-6">
               <button
-                onClick={() => {
-                  setShowModal(false);
-                  setCurrentPage("test");
-                }}
-                className="w-full py-5 rounded-2xl bg-gradient-to-r from-[#00d9b1] to-[#00e6bf] text-white font-['Pretendard'] text-[20px] font-bold shadow-xl shadow-[#00d9b1]/30 hover:shadow-[#00d9b1]/50 hover:scale-[1.02] transition-all duration-300 active:scale-100"
+                onClick={() => { setShowModal(false); setCurrentPage("test"); }}
+                className="w-full py-4 rounded-2xl bg-[#00d9b1] text-white text-[16px] font-bold shadow-lg shadow-[#00d9b1]/20 hover:shadow-[#00d9b1]/40 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200"
               >
-                테스트 하러 가기
+                테스트 시작
               </button>
             </div>
           </div>

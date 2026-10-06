@@ -40,19 +40,18 @@ export default function VoiceRangePage({ onBack, isDarkMode, user, onSelectSinge
   useEffect(() => {
     if (!user?.midi_median) return;
     axios.get(`${BASE_URL}/songs`).then((res) => {
-      // 아티스트별 midi_median 평균
       const artistMap = new Map<string, number[]>();
       for (const s of res.data) {
         if (!s.artist || !s.midi_median) continue;
         if (!artistMap.has(s.artist)) artistMap.set(s.artist, []);
         artistMap.get(s.artist)!.push(s.midi_median);
       }
-      const artists = Array.from(artistMap.entries()).map(([name, medians]) => {
-        const avg = medians.reduce((a, b) => a + b, 0) / medians.length;
-        return { name, avg };
-      });
-      // 유저 midi_median과 차이가 작은 순 정렬, 상위 6명
+      const artists = Array.from(artistMap.entries()).map(([name, medians]) => ({
+        name,
+        avg: medians.reduce((a, b) => a + b, 0) / medians.length,
+      }));
       const sorted = artists
+        .filter((a) => Math.abs(a.avg - user.midi_median) <= 3)
         .sort((a, b) => Math.abs(a.avg - user.midi_median) - Math.abs(b.avg - user.midi_median))
         .slice(0, 6);
       setSimilarSingers(sorted.map((a) => ({
@@ -63,167 +62,144 @@ export default function VoiceRangePage({ onBack, isDarkMode, user, onSelectSinge
     }).catch(() => {});
   }, [user?.midi_median]);
 
-  const bgColor = isDarkMode ? "bg-[#1f1f1f]/60" : "bg-[#f8f7f9]/60";
-  const textColor = isDarkMode ? "text-white" : "text-[#1f1f1f]";
-  const subTextColor = isDarkMode ? "text-white/70" : "text-[#1f1f1f]/70";
-  const border = isDarkMode ? "border-white/10" : "border-[#1f1f1f]/10";
-  const headerBg = isDarkMode ? "bg-[#1f1f1f]/90" : "bg-[#f8f7f9]/90";
-  const cardBg = isDarkMode ? "bg-white/8" : "bg-white/82";
-  const mutedCardBg = isDarkMode ? "bg-white/5" : "bg-[#1f1f1f]/5";
+  const dark = isDarkMode;
+  const bg = dark ? "bg-[#0a0a0a]" : "bg-[#f5f5f7]";
+  const text = dark ? "text-white" : "text-[#1d1d1f]";
+  const sub = dark ? "text-white/50" : "text-[#1d1d1f]/50";
+  const card = dark ? "bg-white/[0.04]" : "bg-black/[0.03]";
+  const cardHover = dark ? "hover:bg-white/[0.07]" : "hover:bg-black/[0.06]";
+  const border = dark ? "border-white/[0.08]" : "border-black/[0.08]";
+  const innerCard = dark ? "bg-white/[0.03]" : "bg-black/[0.02]";
 
   return (
-    <div
-      className={`min-h-screen relative bg-cover bg-center bg-fixed bg-no-repeat ${bgColor}`}
-      style={{
-        backgroundImage:
-          "url('https://cdn.pixabay.com/photo/2022/07/10/01/47/grades-7312021_1280.jpg')",
-      }}
-    >
-      <div
-        className={`absolute inset-0 backdrop-blur-md ${
-          isDarkMode ? "bg-black/80" : "bg-white/60"
-        }`}
-      />
+    <div className={`min-h-screen ${bg} relative overflow-hidden`}>
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] rounded-full blur-[120px] opacity-20 bg-[#00d9b1]" />
+        <div className={`absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full blur-[100px] opacity-10 ${dark ? "bg-blue-500" : "bg-blue-400"}`} />
+      </div>
 
       <div className="relative z-10 min-h-screen flex flex-col font-['Pretendard']">
-        <header
-          className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b ${border} ${headerBg}`}
-        >
-          <div className="w-[85%] mx-auto px-12 py-6 flex items-center justify-between">
-            <button
-              onClick={onBack}
-              className={`p-2 rounded-lg transition-colors ${
-                isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"
-              }`}
-              aria-label="뒤로 가기"
-            >
-              <ArrowLeft className={`w-6 h-6 ${textColor}`} />
+        <header className={`fixed top-0 left-0 right-0 z-50 ${dark ? "bg-[#0a0a0a]/80" : "bg-[#f5f5f7]/80"} backdrop-blur-xl border-b ${border}`}>
+          <div className="max-w-6xl mx-auto px-8 h-16 flex items-center justify-between">
+            <button onClick={onBack} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${card} ${cardHover} border ${border}`}>
+              <ArrowLeft className={`w-4 h-4 ${sub}`} />
             </button>
-
-            <h1 className={`font-['Pretendard'] text-[22px] font-thin tracking-wide ${textColor}`}>
-              PitchWizard
-            </h1>
-
+            <span className={`text-[15px] font-semibold tracking-tight ${text}`}>PitchWizard</span>
             <div className="w-8" />
           </div>
         </header>
 
-        <main className="flex-1 px-6 md:px-10 pt-36 pb-16">
-          <div className="w-[85%] max-w-[1180px] mx-auto">
-            <div className="max-w-3xl">
-              <p className="text-sm uppercase tracking-[0.28em] text-[#00d9b1]">Voice Range Result</p>
-              <h2 className={`mt-4 text-[50px] md:text-[52px] font-bold leading-[1.04] ${textColor}`}>
-                나의 음역대
-              </h2>
+        <main className="flex-1 pt-16 px-8 pb-16 max-w-6xl mx-auto w-full">
+          {/* 히어로 */}
+          <div className="text-center pt-16 pb-10">
+            <div className={`inline-flex items-center gap-2 text-[12px] px-3 py-1 rounded-full border ${border} ${card} ${sub} mb-7`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00d9b1] animate-pulse" />
+              Voice Range Result
             </div>
+            <h2 className={`text-[52px] font-bold leading-[1.05] tracking-tight ${text} mb-4`}>
+              나의 음역대를<br />
+              <span className="text-[#00d9b1]">확인하세요</span>
+            </h2>
+            <p className={`text-[16px] ${sub} leading-relaxed max-w-md mx-auto`}>
+              테스트 결과와 유사 음역대 가수를 한눈에 볼 수 있습니다
+            </p>
+          </div>
 
-
-            <div className="mt-8 space-y-6">
-              <section className={`rounded-[30px] border ${border} ${cardBg} p-7 md:p-8 backdrop-blur-xl`}>
-                <div className="flex items-center gap-3">
-                  <BarChart3 className={`w-5 h-5 ${textColor}`} />
-                  <h3 className={`text-[20px] font-semibold ${textColor}`}>음역대 테스트 결과</h3>
+          <div className="space-y-4">
+            {/* 테스트 결과 */}
+            <section className={`rounded-2xl border ${border} ${card} p-7`}>
+              <div className="flex items-center gap-3 mb-6">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${border} ${innerCard}`}>
+                  <BarChart3 className={`w-4 h-4 ${sub}`} />
                 </div>
+                <h3 className={`text-[20px] font-semibold ${text}`}>음역대 테스트 결과</h3>
+              </div>
 
-                <div className={`mt-6 rounded-2xl border ${border} ${mutedCardBg} p-6 md:p-7`}>
-                  <p className={`text-[14px] tracking-wide ${subTextColor}`}>음역대 범위</p>
-                  <p className={`mt-2 text-[54px] md:text-[70px] font-bold leading-none ${textColor}`}>
-                    {hasMeasured ? `${lowNote} ~ ${highNote}` : "미측정"}
+              <div className={`rounded-xl border ${border} ${innerCard} p-6 mb-4`}>
+                <p className={`text-[12px] tracking-wide ${sub} mb-2`}>음역대 범위</p>
+                <p className={`text-[48px] font-bold leading-none ${text}`}>
+                  {hasMeasured ? `${lowNote} ~ ${highNote}` : "미측정"}
+                </p>
+
+                <div className={`mt-5 rounded-xl border ${border} ${dark ? "bg-black/30" : "bg-white/80"} p-4`}>
+                  <div className="relative h-[110px] rounded-xl border border-black/15 overflow-hidden bg-gradient-to-b from-white to-[#f0f0f0]">
+                    <div className="absolute inset-0 flex">
+                      {whiteKeys.map((note, index) => {
+                        const inRange = index >= rangeStartWhiteIndex && index <= rangeEndWhiteIndex;
+                        const noteHead = note[0];
+                        const hasBlackRight = noteHead !== "E" && noteHead !== "B";
+                        return (
+                          <div
+                            key={note}
+                            className={`relative flex-1 border-r last:border-r-0 ${inRange ? "bg-gradient-to-b from-[#b8ffef] to-[#83f5d8] border-black/20" : "bg-gradient-to-b from-white to-[#ececec] border-black/15"}`}
+                          >
+                            {hasBlackRight && index < whiteKeys.length - 1 && (
+                              <span className={`absolute right-0 top-0 translate-x-1/2 z-10 h-[66px] w-[54%] rounded-b-md border border-black/50 shadow-[0_7px_10px_rgba(0,0,0,0.35)] ${inRange && index + 1 >= rangeStartWhiteIndex && index + 1 <= rangeEndWhiteIndex ? "bg-gradient-to-b from-[#00f3c8] to-[#00b894]" : "bg-gradient-to-b from-[#262626] to-black"}`} />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className={`mt-3 flex justify-between text-[11px] ${sub}`}>
+                    <span>C3</span>
+                    <span className="text-[#00d9b1] font-semibold">{hasMeasured ? `${lowNote} ~ ${highNote}` : "미측정"}</span>
+                    <span>C6</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`rounded-xl border ${border} ${innerCard} p-5`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Mic2 className={`w-4 h-4 ${sub}`} />
+                  <p className={`text-[16px] font-semibold ${text}`}>음역 해석</p>
+                </div>
+                {hasMeasured ? (
+                  <p className={`text-[15px] leading-7 ${sub}`}>
+                    최저음 <span className="text-[#00d9b1] font-semibold">{lowNote}</span>부터
+                    최고음 <span className="text-[#00d9b1] font-semibold">{highNote}</span>까지 측정되었습니다.
                   </p>
+                ) : (
+                  <p className={`text-[15px] leading-7 ${sub}`}>
+                    아직 음역대 테스트를 완료하지 않았습니다. 홈으로 돌아가 테스트를 진행해주세요.
+                  </p>
+                )}
+              </div>
+            </section>
 
-                  <div
-                    className={`mt-5 rounded-2xl border ${border} ${
-                      isDarkMode ? "bg-black/30" : "bg-white/80"
-                    } p-4`}
-                  >
-                    <div className="relative h-[120px] rounded-xl border border-black/15 overflow-hidden bg-gradient-to-b from-white to-[#f0f0f0]">
-                      <div className="absolute inset-0 flex">
-                        {whiteKeys.map((note, index) => {
-                          const inRange =
-                            index >= rangeStartWhiteIndex && index <= rangeEndWhiteIndex;
-                          const noteHead = note[0];
-                          const hasBlackRight = noteHead !== "E" && noteHead !== "B";
-                          return (
-                            <div
-                              key={note}
-                              className={`relative flex-1 border-r last:border-r-0 ${
-                                inRange
-                                  ? "bg-gradient-to-b from-[#b8ffef] to-[#83f5d8] border-black/20"
-                                  : "bg-gradient-to-b from-white to-[#ececec] border-black/15"
-                              }`}
-                            >
-                              {hasBlackRight && index < whiteKeys.length - 1 ? (
-                                <span
-                                  className={`absolute right-0 top-0 translate-x-1/2 z-10 h-[66px] w-[54%] rounded-b-md border border-black/50 shadow-[0_7px_10px_rgba(0,0,0,0.35)] ${
-                                    inRange &&
-                                    index + 1 >= rangeStartWhiteIndex &&
-                                    index + 1 <= rangeEndWhiteIndex
-                                      ? "bg-gradient-to-b from-[#00f3c8] to-[#00b894]"
-                                      : "bg-gradient-to-b from-[#262626] to-black"
-                                  }`}
-                                />
-                              ) : null}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className={`mt-3 flex justify-between text-[13px] ${subTextColor}`}>
-                      <span>C3</span>
-                      <span className="text-[#00efc4] font-semibold">
-                        {hasMeasured ? `${lowNote} ~ ${highNote}` : "미측정"}
-                      </span>
-                      <span>C6</span>
-                    </div>
-                  </div>
+            {/* 유사 음역대 가수 */}
+            <section className={`rounded-2xl border ${border} ${card} p-7`}>
+              <div className="flex items-center gap-3 mb-6">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${border} ${innerCard}`}>
+                  <UserRound className={`w-4 h-4 ${sub}`} />
                 </div>
+                <h3 className={`text-[20px] font-semibold ${text}`}>유사 음역대 가수</h3>
+              </div>
 
-                <div className={`mt-6 rounded-2xl border ${border} ${mutedCardBg} p-6`}>
-                  <div className="flex items-center gap-2">
-                    <Mic2 className={`w-5 h-5 ${textColor}`} />
-                    <p className={`text-[20px] font-semibold ${textColor}`}>음역 해석</p>
-                  </div>
-                  {hasMeasured ? (
-                    <p className={`mt-3 text-[20px] leading-8 ${subTextColor} font-light`}>
-                      최저음 <span className="text-[#00efc4] font-semibold">{lowNote}</span>부터
-                      최고음 <span className="text-[#00efc4] font-semibold">{highNote}</span>까지
-                      측정되었습니다.
-                    </p>
-                  ) : (
-                    <p className={`mt-3 text-[20px] leading-8 ${subTextColor} font-light`}>
-                      아직 음역대 테스트를 완료하지 않았습니다.
-                      홈으로 돌아가 테스트를 진행해주세요.
-                    </p>
-                  )}
-                </div>
-              </section>
-
-              <section className={`rounded-[30px] border ${border} ${cardBg} p-7 md:p-8 backdrop-blur-xl`}>
-                <div className="flex items-center gap-3">
-                  <UserRound className={`w-5 h-5 ${textColor}`} />
-                  <h3 className={`text-[24px] font-semibold ${textColor}`}>유사 음역대 가수</h3>
-                </div>
-
-                <div className="mt-5 px-1 md:px-2 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {similarSingers.length === 0 ? (
+                <p className={`text-[13px] ${sub}`}>
+                  {user?.midi_median ? "유사한 음역대의 가수가 없습니다." : "음역대 테스트를 완료하면 유사한 가수를 확인할 수 있습니다."}
+                </p>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {similarSingers.map((singer) => (
                     <button
                       key={singer.name}
                       type="button"
                       onClick={() => onSelectSinger?.(singer.name)}
-                      className={`text-left rounded-2xl border ${border} ${mutedCardBg} px-5 py-4 md:px-6 md:py-5 flex items-start gap-3 shadow-lg shadow-black/10 transition-colors ${isDarkMode ? "hover:bg-white/10" : "hover:bg-[#1f1f1f]/10"}`}
+                      className={`text-left rounded-xl border ${border} ${innerCard} px-5 py-4 flex items-start gap-3 transition-all ${cardHover} hover:border-[#00d9b1]/20 group`}
                     >
-                      <div className="mt-0.5 h-9 w-1 rounded-full bg-gradient-to-b from-[#00efc4] to-[#00b894]" />
+                      <div className="mt-1 h-8 w-0.5 rounded-full bg-gradient-to-b from-[#00d9b1] to-[#00b894] flex-shrink-0" />
                       <div className="min-w-0">
-                        <p className={`text-[18px] font-semibold ${textColor}`}>{singer.name}</p>
-                        <p className="text-[#00efc4] text-[14px] mt-1">{singer.range}</p>
-                        <p className={`mt-2 text-[14px] leading-6 ${subTextColor}`}>{singer.overlap}</p>
+                        <p className={`text-[16px] font-semibold ${text} group-hover:text-[#00d9b1] transition-colors`}>{singer.name}</p>
+                        <p className="text-[#00d9b1] text-[12px] mt-1">{singer.range}</p>
+                        <p className={`mt-1.5 text-[12px] ${sub}`}>{singer.overlap}</p>
                       </div>
                     </button>
                   ))}
                 </div>
-              </section>
-            </div>
+              )}
+            </section>
           </div>
         </main>
       </div>
