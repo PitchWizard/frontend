@@ -1,4 +1,8 @@
+import { useEffect, useState } from "react";
 import { ArrowLeft, Music2, PlayCircle, UserRound } from "lucide-react";
+import axios from "axios";
+
+const BASE_URL = "http://127.0.0.1:8000";
 
 type SongInfo = {
   id: string | number;
@@ -12,6 +16,9 @@ type SongInfo = {
   rmsMean?: number | null;
   rmsStd?: number | null;
 };
+
+// GET /songs/{song_id}/transpose 응답 중 화면에서 쓰는 값
+export type TransposeResult = { recommended_shift: number | null; message: string };
 
 type Props = {
   onBack: () => void;
@@ -39,7 +46,15 @@ function hasBlackKeyToRight(whiteMidi: number) {
   return note !== "E" && note !== "B";
 }
 
-function clampToAccompanimentRange(v: number) { return Math.max(-5, Math.min(5, v)); }
+export function clampToAccompanimentRange(v: number) { return Math.max(-5, Math.min(5, v)); }
+
+function formatShift(v: number) { return v > 0 ? `+${v}` : `${v}`; }
+
+// 서버 추천 키가 반주 조절 범위(-5~+5)를 넘을 때 덧붙이는 안내
+export function clampNotice(rawShift: number | null) {
+  if (rawShift === null || clampToAccompanimentRange(rawShift) === rawShift) return "";
+  return `서버 추천 ${formatShift(rawShift)}키, 반주 조절 범위(±5)로 제한`;
+}
 function inRange(midi: number, min: number | null, max: number | null) {
   return min !== null && max !== null && midi >= min && midi <= max;
 }
@@ -65,15 +80,39 @@ export default function SongDetailPage({ onBack, onGoAccompaniment, isDarkMode, 
   const songMedian = typeof song.midiMedian === "number" ? song.midiMedian : null;
   const songMax = typeof song.midiMax === "number" ? song.midiMax : null;
   const userMin = typeof user?.midi_min === "number" && user.midi_min > 0 ? user.midi_min : null;
-  const userMedian = typeof user?.midi_median === "number" && user.midi_median > 0 ? user.midi_median : null;
   const userMax = typeof user?.midi_max === "number" && user.midi_max > 0 ? user.midi_max : null;
   const hasSongRange = songMin !== null && songMax !== null;
   const hasUserRange = userMin !== null && userMax !== null;
   const overlapMin = hasSongRange && hasUserRange ? Math.max(songMin, userMin) : null;
   const overlapMax = hasSongRange && hasUserRange ? Math.min(songMax, userMax) : null;
   const hasOverlap = overlapMin !== null && overlapMax !== null && overlapMin <= overlapMax;
-  const recommendedShift = typeof songMedian === "number" && typeof userMedian === "number"
-    ? clampToAccompanimentRange(Math.round(userMedian - songMedian)) : null;
+  const songId = song.id;
+  const userId = user?.id ?? null;
+  const canRequestTranspose = userId !== null && hasUserRange && hasSongRange;
+
+  // 추천 키: 서버 calc_smart_transpose(음역 경계 기준) 결과를 반주 화면과 똑같이 사용
+  const [transpose, setTranspose] = useState<TransposeResult | null>(null);
+  const [transposeError, setTransposeError] = useState(false);
+
+  async function fetchTranspose(songId: string | number) {
+    const res = await axios.get(`${BASE_URL}/songs/${songId}/transpose`, { params: { user_id: userId } });
+    return { recommended_shift: res.data?.recommended_shift ?? null, message: res.data?.message ?? "" } as TransposeResult;
+  }
+
+  useEffect(() => {
+    setTranspose(null);
+    setTransposeError(false);
+    if (!canRequestTranspose) return;
+    let cancelled = false;
+    fetchTranspose(songId)
+      .then((r) => { if (!cancelled) setTranspose(r); })
+      .catch(() => { if (!cancelled) setTransposeError(true); });
+    return () => { cancelled = true; };
+  }, [songId, userId, canRequestTranspose]);
+
+  const rawShift = transpose?.recommended_shift ?? null;
+  const recommendedShift = rawShift !== null ? clampToAccompanimentRange(rawShift) : null;
+  const shiftNotice = clampNotice(rawShift);
   const whiteKeys = buildWhiteMidiKeys();
 
   return (
@@ -180,12 +219,26 @@ export default function SongDetailPage({ onBack, onGoAccompaniment, isDarkMode, 
                     <p className={`text-[14px] leading-7 ${sub}`}>
                       {hasOverlap ? `겹치는 구간은 ${midiToNoteName(overlapMin)} ~ ${midiToNoteName(overlapMax)}입니다.` : "현재 측정값 기준으로는 겹치는 구간이 거의 없습니다."}
                     </p>
-                    <p className={`text-[14px] leading-7 ${sub}`}>
-                      추천 전조는{" "}
-                      <span className="font-semibold text-[#00d9b1]">
-                        {recommendedShift === null ? "계산 불가" : recommendedShift > 0 ? `+${recommendedShift}키` : `${recommendedShift}키`}
-                      </span>입니다.
-                    </p>
+                    {userId === null ? (
+                      <p className={`text-[14px] leading-7 ${sub}`}>로그인하면 추천 전조를 확인할 수 있습니다.</p>
+                    ) : !hasSongRange ? (
+                      <p className={`text-[14px] leading-7 ${sub}`}>곡 음역대 정보가 없어 추천 전조를 계산할 수 없습니다.</p>
+                    ) : transposeError ? (
+                      <p className={`text-[14px] leading-7 ${sub}`}>추천 전조를 불러오지 못했습니다.</p>
+                    ) : transpose === null ? (
+                      <p className={`text-[14px] leading-7 ${sub}`}>추천 전조를 계산하는 중입니다…</p>
+                    ) : recommendedShift === null ? (
+                      <p className={`text-[14px] leading-7 ${sub}`}>{transpose.message}</p>
+                    ) : (
+                      <>
+                        <p className={`text-[14px] leading-7 ${sub}`}>
+                          추천 전조는{" "}
+                          <span className="font-semibold text-[#00d9b1]">{formatShift(recommendedShift)}키</span>입니다.
+                          {shiftNotice && <span className="ml-1 text-[12px]">({shiftNotice})</span>}
+                        </p>
+                        <p className={`text-[14px] leading-7 ${sub}`}>{transpose.message}</p>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -198,7 +251,7 @@ export default function SongDetailPage({ onBack, onGoAccompaniment, isDarkMode, 
                   <p className={`text-[17px] font-semibold ${text}`}>반주 재생으로 이어가기</p>
                   <p className={`mt-1 text-[13px] ${sub}`}>
                     선택한 곡을 반주 페이지에서 바로 불러옵니다
-                    {recommendedShift !== null ? ` · 추천 ${recommendedShift > 0 ? `+${recommendedShift}` : recommendedShift}키` : ""}
+                    {recommendedShift !== null ? ` · 추천 ${formatShift(recommendedShift)}키` : ""}
                   </p>
                 </div>
                 <button

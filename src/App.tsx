@@ -43,6 +43,7 @@ export default function App() {
   const [selectedSong, setSelectedSong] = useState<SelectedSong | null>(null);
   const [selectedSinger, setSelectedSinger] = useState<string | null>(null);
   const [singerFrom, setSingerFrom] = useState<Page>("home");
+  const [songDetailFrom, setSongDetailFrom] = useState<Page>("search");
   const [user, setUser] = useState<any>(() => {
     const saved = localStorage.getItem("user");
     return saved ? JSON.parse(saved) : null;
@@ -54,11 +55,11 @@ export default function App() {
   if (currentPage === "login") return <LoginPage onBack={() => setCurrentPage("home")} onLogin={handleLogin} onGoSignup={() => setCurrentPage("signup")} isDarkMode={isDarkMode} />;
   if (currentPage === "signup") return <SignupPage onBack={() => setCurrentPage("home")} onGoLogin={() => setCurrentPage("login")} isDarkMode={isDarkMode} />;
   if (currentPage === "test") return <PitchTest onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} user={user} onTestComplete={(updated: any) => { const u = { ...user, ...updated }; setUser(u); localStorage.setItem("user", JSON.stringify(u)); }} />;
-  if (currentPage === "search") return <SearchPage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} onSelectSong={(song) => { setSelectedSong(song); setCurrentPage("songDetail"); }} onSelectSinger={(name) => { setSelectedSinger(name); setSingerFrom("search"); setCurrentPage("singer"); }} />;
-  if (currentPage === "songDetail" && selectedSong) return <SongDetailPage onBack={() => setCurrentPage("search")} onGoAccompaniment={() => setCurrentPage("accompaniment")} isDarkMode={isDarkMode} user={user} song={selectedSong} />;
+  if (currentPage === "search") return <SearchPage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} onSelectSong={(song) => { setSelectedSong(song); setSongDetailFrom("search"); setCurrentPage("songDetail"); }} onSelectSinger={(name) => { setSelectedSinger(name); setSingerFrom("search"); setCurrentPage("singer"); }} />;
+  if (currentPage === "songDetail" && selectedSong) return <SongDetailPage onBack={() => setCurrentPage(songDetailFrom)} onGoAccompaniment={() => setCurrentPage("accompaniment")} isDarkMode={isDarkMode} user={user} song={selectedSong} />;
   if (currentPage === "songDetail" && !selectedSong) return <SearchPage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} onSelectSong={(song) => { setSelectedSong(song); setCurrentPage("songDetail"); }} />;
   if (currentPage === "accompaniment") return <AccompanimentPage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} user={user} initialSongId={selectedSong?.id} initialSongTitle={selectedSong?.title} initialSongArtist={selectedSong?.artist} />;
-  if (currentPage === "range") return <VoiceRangePage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} user={user} onSelectSinger={(name) => { setSelectedSinger(name); setSingerFrom("range"); setCurrentPage("singer"); }} />;
+  if (currentPage === "range") return <VoiceRangePage onBack={() => setCurrentPage("home")} isDarkMode={isDarkMode} user={user} onSelectSinger={(name) => { setSelectedSinger(name); setSingerFrom("range"); setCurrentPage("singer"); }} onSelectSong={(song) => { setSelectedSong(song); setSongDetailFrom("range"); setCurrentPage("songDetail"); }} />;
   if (currentPage === "singer" && selectedSinger) return <SingerPage singerName={selectedSinger} onBack={() => setCurrentPage(singerFrom)} isDarkMode={isDarkMode} />;
 
   const dark = isDarkMode;

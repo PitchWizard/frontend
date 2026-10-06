@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, BarChart3, Mic2, UserRound } from "lucide-react";
+import { ArrowLeft, BarChart3, Mic2, Music2, UserRound } from "lucide-react";
 import axios from "axios";
+import { getSongCatalog } from "./api/songApi";
+import { clampToAccompanimentRange } from "./SongDetailPage.tsx";
 
 const BASE_URL = "http://127.0.0.1:8000";
 
@@ -14,6 +16,7 @@ type Props = {
   isDarkMode: boolean;
   user: any;
   onSelectSinger?: (name: string) => void;
+  onSelectSong?: (song: any) => void;
 };
 
 const whiteKeys = [
@@ -28,7 +31,10 @@ function getNoteWhiteIndex(note: string): number {
 
 type SimilarSinger = { name: string; range: string; overlap: string };
 
-export default function VoiceRangePage({ onBack, isDarkMode, user, onSelectSinger }: Props) {
+// GET /songs/recommend 응답 항목 (서버가 부르기 어려운 곡은 이미 제외)
+type RecommendedSong = { song_id: number; title: string; artist: string; recommended_shift: number; message: string };
+
+export default function VoiceRangePage({ onBack, isDarkMode, user, onSelectSinger, onSelectSong }: Props) {
   const lowNote: string | null = user?.low_note ?? null;
   const highNote: string | null = user?.high_note ?? null;
   const rangeStartWhiteIndex = lowNote ? getNoteWhiteIndex(lowNote) : -1;
@@ -61,6 +67,40 @@ export default function VoiceRangePage({ onBack, isDarkMode, user, onSelectSinge
       })));
     }).catch(() => {});
   }, [user?.midi_median]);
+
+  // 내 음역에 맞는 곡 (US-34): 측정 기록이 있을 때만 서버에 요청
+  const userId = user?.id ?? null;
+  const hasUserRange = user?.midi_min > 0 && user?.midi_max > 0;
+  const [recommendedSongs, setRecommendedSongs] = useState<RecommendedSong[]>([]);
+  const [recommendStatus, setRecommendStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+
+  async function fetchRecommendations() {
+    setRecommendStatus("loading");
+    try {
+      const res = await axios.get(`${BASE_URL}/songs/recommend`, { params: { user_id: userId } });
+      const list: RecommendedSong[] = Array.isArray(res.data) ? res.data : [];
+      setRecommendedSongs([...list].sort((a, b) => Math.abs(a.recommended_shift) - Math.abs(b.recommended_shift)));
+      setRecommendStatus("done");
+    } catch {
+      setRecommendedSongs([]);
+      setRecommendStatus("error");
+    }
+  }
+
+  useEffect(() => {
+    if (userId === null || !hasUserRange) return;
+    fetchRecommendations();
+  }, [userId, hasUserRange]);
+
+  // 검색 화면과 같은 곡 정보(getSongCatalog)로 곡 상세 화면에 넘긴다
+  async function openSongDetail(rec: RecommendedSong) {
+    let song: any = null;
+    try {
+      const catalog = await getSongCatalog();
+      song = catalog.find((s: any) => String(s.id) === String(rec.song_id)) ?? null;
+    } catch { /* 목록을 못 불러오면 추천 결과만으로 이동 */ }
+    onSelectSong?.(song ?? { id: rec.song_id, title: rec.title, artist: rec.artist });
+  }
 
   const dark = isDarkMode;
   const bg = dark ? "bg-[#0a0a0a]" : "bg-[#f5f5f7]";
@@ -197,6 +237,51 @@ export default function VoiceRangePage({ onBack, isDarkMode, user, onSelectSinge
                       </div>
                     </button>
                   ))}
+                </div>
+              )}
+            </section>
+
+            {/* 내 음역에 맞는 곡 */}
+            <section className={`rounded-2xl border ${border} ${card} p-7`}>
+              <div className="flex items-center gap-3 mb-6">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${border} ${innerCard}`}>
+                  <Music2 className={`w-4 h-4 ${sub}`} />
+                </div>
+                <h3 className={`text-[20px] font-semibold ${text}`}>내 음역에 맞는 곡</h3>
+              </div>
+
+              {userId === null ? (
+                <p className={`text-[13px] ${sub}`}>로그인하면 맞춤 곡을 확인할 수 있습니다.</p>
+              ) : !hasUserRange ? (
+                <p className={`text-[13px] ${sub}`}>음역대 테스트를 완료하면 맞춤 곡을 확인할 수 있습니다.</p>
+              ) : recommendStatus === "loading" || recommendStatus === "idle" ? (
+                <p className={`text-[13px] ${sub}`}>맞춤 곡을 불러오는 중입니다…</p>
+              ) : recommendStatus === "error" ? (
+                <p className={`text-[13px] ${sub}`}>맞춤 곡을 불러오지 못했습니다.</p>
+              ) : recommendedSongs.length === 0 ? (
+                <p className={`text-[13px] ${sub}`}>추천할 곡이 없습니다.</p>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {recommendedSongs.map((rec) => {
+                    const shift = clampToAccompanimentRange(rec.recommended_shift);
+                    return (
+                      <button
+                        key={rec.song_id}
+                        type="button"
+                        onClick={() => openSongDetail(rec)}
+                        className={`text-left rounded-xl border ${border} ${innerCard} px-5 py-4 flex items-start gap-3 transition-all ${cardHover} hover:border-[#00d9b1]/20 group`}
+                      >
+                        <div className="mt-1 h-8 w-0.5 rounded-full bg-gradient-to-b from-[#00d9b1] to-[#00b894] flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className={`truncate text-[16px] font-semibold ${text} group-hover:text-[#00d9b1] transition-colors`}>{rec.title}</p>
+                          <p className={`truncate mt-1 text-[12px] ${sub}`}>{rec.artist}</p>
+                          <p className="text-[#00d9b1] text-[12px] mt-1.5">
+                            {shift === 0 ? "원키 추천" : `추천 키 ${shift > 0 ? `+${shift}` : shift}`}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </section>

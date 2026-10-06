@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Mic, MicOff, Play, Search, Square, X } from "lucide-react";
 import { PitchDetector } from "pitchy";
 import axios from "axios";
+import { clampNotice, clampToAccompanimentRange, type TransposeResult } from "./SongDetailPage.tsx";
 
 const BASE_URL = "http://127.0.0.1:8000";
 
@@ -136,6 +137,24 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
 
   // pitchFrames ref 동기화 (sampleInterval 클로저에서 사용)
   useEffect(() => { pitchFramesRef.current = pitchFrames; }, [pitchFrames]);
+
+  // 추천 키: 곡 상세 화면과 같은 서버 결과(GET /songs/{song_id}/transpose)를 사용
+  const [transpose, setTranspose] = useState<TransposeResult | null>(null);
+  const userId = user?.id ?? null;
+  const hasUserRange = user?.midi_min > 0 && user?.midi_max > 0;
+  useEffect(() => {
+    setTranspose(null);
+    if (!selectedSong || userId === null || !hasUserRange) return;
+    if (selectedSong.midi_min == null || selectedSong.midi_max == null) return;
+    let cancelled = false;
+    axios
+      .get(`${BASE_URL}/songs/${selectedSong.song_id}/transpose`, { params: { user_id: userId } })
+      .then((r) => {
+        if (!cancelled) setTranspose({ recommended_shift: r.data?.recommended_shift ?? null, message: r.data?.message ?? "" });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedSong, userId, hasUserRange]);
 
   // selectedSong ref 동기화 (drawCanvas 클로저에서 사용)
   useEffect(() => { selectedSongRef.current = selectedSong; }, [selectedSong]);
@@ -633,10 +652,10 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
     return { text: "더 연습해봐요", color: "#f87171" };
   }
 
-  // 사용자 추천 키
-  const recommendedKey = selectedSong && user?.midi_median
-    ? Math.round(user.midi_median - selectedSong.midi_median)
-    : null;
+  // 사용자 추천 키 (반주 조절 범위 -5~+5로 제한한 값을 표시·적용)
+  const rawRecommendedKey = transpose?.recommended_shift ?? null;
+  const recommendedKey = rawRecommendedKey !== null ? clampToAccompanimentRange(rawRecommendedKey) : null;
+  const recommendedNotice = clampNotice(rawRecommendedKey);
 
   const diff = userPitch !== null && originalPitch !== null
     ? Math.round((userPitch - (originalPitch + semitones)) * 10) / 10
@@ -776,15 +795,23 @@ export default function AccompanimentPage({ onBack, isDarkMode, user, initialSon
 
                 <div className="flex items-center justify-between mb-4">
                   <p className={`text-sm font-medium ${subTextColor}`}>키 조절</p>
-                  {recommendedKey !== null && (
+                  {recommendedKey !== null ? (
                     <button
-                      onClick={() => changeSemitones(Math.max(-5, Math.min(5, recommendedKey)))}
+                      onClick={() => changeSemitones(recommendedKey)}
+                      title={recommendedNotice || transpose?.message}
                       className="text-xs px-3 py-1 rounded-full bg-[#00d9b1]/20 text-[#00d9b1] border border-[#00d9b1]/30"
                     >
                       추천 키 {recommendedKey > 0 ? `+${recommendedKey}` : recommendedKey} 적용
                     </button>
+                  ) : transpose !== null && (
+                    <span className={`text-xs ${subTextColor}`}>{transpose.message}</span>
                   )}
                 </div>
+                {recommendedKey !== null && (
+                  <p className={`-mt-2 mb-4 text-xs ${subTextColor}`}>
+                    {transpose?.message}{recommendedNotice && ` (${recommendedNotice})`}
+                  </p>
+                )}
 
                 <div className="flex items-center gap-4">
                   <span className={`text-[28px] font-bold w-16 text-center ${textColor}`}>
